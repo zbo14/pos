@@ -71,7 +71,7 @@ func (t *Tree) AddLeaf(value []byte) error {
 		t.batch.Put(key, value)
 		t.value = nil
 		t.nodeCount++
-		if t.nodeCount%BATCH_SIZE == 0 || t.nodeCount == t.numLeaves/2 {
+		if t.leafCount%BATCH_SIZE == 0 || t.leafCount+1 == t.numLeaves {
 			if err := t.db.Write(t.batch, nil); err != nil {
 				return err
 			}
@@ -156,9 +156,6 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*MerkleProof, err
 	pos := idx + t.numNodes + 1
 	p.Pos = pos
 	p.Value = value
-	fmt.Println("\nComputing Proof")
-	fmt.Printf("%x...\n", value[:3])
-	fmt.Printf("%x...\n", sibling[:3])
 	for {
 		if pos >>= 1; pos == 1 {
 			break
@@ -168,7 +165,6 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*MerkleProof, err
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("%x...\n", val[:3])
 		p.Branch = append(p.Branch, val)
 	}
 	return p, nil
@@ -178,10 +174,7 @@ func VerifyProof(p *MerkleProof, root []byte) bool {
 	hash := NewHash()
 	pos := p.Pos
 	value := p.Value
-	fmt.Println("\nVerifying Proof")
-	fmt.Printf("%x...\n", value[:3])
 	for _, otherValue := range p.Branch {
-		fmt.Printf("%x...\n", otherValue[:3])
 		hash.Reset()
 		if pos&1 == 0 {
 			hash.Write(append(value, otherValue...))
@@ -191,6 +184,5 @@ func VerifyProof(p *MerkleProof, root []byte) bool {
 		value = hash.Sum(nil)
 		pos >>= 1
 	}
-	fmt.Printf("%x..., %x...\n", root[:3], value[:3])
 	return bytes.Equal(root, value)
 }

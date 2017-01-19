@@ -6,54 +6,63 @@ import (
 )
 
 func TestPos(t *testing.T) {
+	// Create prover with private key
 	priv := crypto.GeneratePrivateKey()
 	prover := NewProver(priv)
-
+	// Initialize merkle tree
 	if err := prover.MerkleTree(0); err != nil {
 		t.Error(err.Error())
 	}
-	if err := prover.GraphDoubleButterfly(0); err != nil {
+	// Construct graph
+	//prover.GraphDoubleButterfly
+	//prover.GraphLinearSuperconcentrator
+	if err := prover.GraphStackedExpanders(0); err != nil {
 		t.Error(err.Error())
 	}
+	// Commit
+	// (1) Set graph values
+	// (2) Add leaves to merkle tree
+	// (3) Hash levels of merkle tree
+	// (4) Set commit to root hash
 	if err := prover.Commit(); err != nil {
 		t.Error(err.Error())
 	}
-	/*
-		c, err := prover.MakeCommitment()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		verifier, _ := NewVerifier(prover.graph.Size())
-		if err := verifier.VerifyCommitment(c); err != nil {
-			t.Error(err.Error())
-		}
-		challenges, err := verifier.ConsistencyChallenges()
-		if err != nil {
-			t.Error(err.Error())
-		}
-		_, err = prover.ProveConsistency(challenges)
-		if err != nil {
-			t.Error(err.Error())
-		}
-	*/
-	idx := int64(130)
-	nd, _ := prover.graph.Get(idx)
-	sibling, _ := prover.graph.Get(idx ^ 1)
-	proof, _ := prover.tree.ComputeProof(idx, sibling.Value, nd.Value)
-	root, _ := prover.tree.Root()
-	if !VerifyProof(proof, root) {
-		t.Error("Invalid proof")
+	// Make commitment (commit, public_key, signature)
+	cmt, err := prover.MakeCommitment()
+	if err != nil {
+		t.Error(err.Error())
 	}
-	idx = int64(145)
-	nd, _ = prover.graph.Get(idx)
-	sibling, _ = prover.graph.Get(idx ^ 1)
-	proof, _ = prover.tree.ComputeProof(idx, sibling.Value, nd.Value)
-	if !VerifyProof(proof, root) {
-		t.Error("Invalid proof")
+	// Create verifier
+	verifier, _ := NewVerifier(prover.graph.Size()) // size should be agreed upon parameter
+	if err := verifier.VerifyCommitment(cmt); err != nil {
+		t.Error(err.Error())
 	}
-	/*
-		if err := verifier.VerifyConsistency(cProof); err != nil {
-			t.Error(err.Error())
-		}
-	*/
+	// Randomly sample consistency challenges
+	challenges, err := verifier.ConsistencyChallenges()
+	if err != nil {
+		t.Error(err.Error())
+	}
+	// Generate consistency proof
+	cproof, err := prover.ProveConsistency(challenges)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	// Verify consistency proof
+	if err := verifier.VerifyConsistency(cproof); err != nil {
+		t.Error(err.Error())
+	}
+	// Randomly sample space challenges
+	challenges, err = verifier.SpaceChallenges()
+	if err != nil {
+		t.Error(err.Error())
+	}
+	// Generate space proof
+	sproof, err := prover.ProveSpace(challenges)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	// Verify space proof
+	if err := verifier.VerifySpace(sproof); err != nil {
+		t.Error(err.Error())
+	}
 }
