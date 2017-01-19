@@ -94,7 +94,7 @@ func (p *Prover) GraphStackedExpanders(id int) error {
 }
 
 func (p *Prover) Commit() error {
-	pub := p.priv.PublicKey()
+	pub := p.priv.Public()
 	if err := p.graph.SetValues(pub); err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (p *Prover) MakeCommitment() (*Commitment, error) {
 	if len(p.commit) == 0 {
 		return nil, errors.New("Commit is not set")
 	}
-	pub := p.priv.PublicKey()
+	pub := p.priv.Public()
 	sig := p.priv.Sign(p.commit)
 	return &Commitment{
 		Commit:    p.commit,
@@ -140,7 +140,7 @@ func (p *Prover) NewConsistencyProof(parentProofs [][]*MerkleProof, proofs []*Me
 	return &ConsistencyProof{
 		ParentProofs: parentProofs,
 		Proofs:       proofs,
-		PubKey:       p.priv.PublicKey(),
+		PubKey:       p.priv.Public(),
 		Size:         p.graph.Size(),
 	}
 }
@@ -197,7 +197,7 @@ func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error)
 func (p *Prover) NewSpaceProof(proofs []*MerkleProof) *SpaceProof {
 	return &SpaceProof{
 		Proofs: proofs,
-		PubKey: p.priv.PublicKey(),
+		PubKey: p.priv.Public(),
 		Size:   p.graph.Size(),
 	}
 }

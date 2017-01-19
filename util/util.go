@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/sha3"
 	"hash"
 	"math"
@@ -149,7 +150,16 @@ func (i64s Int64s) Swap(i, j int) {
 	i64s[i], i64s[j] = i64s[j], i64s[i]
 }
 
-// Check err
+// Errors
+
+func Error(msg string) error {
+	return errors.New(msg)
+}
+
+func Errorf(format string, args ...interface{}) error {
+	return errors.Errorf(format, args...)
+}
+
 func Check(err error) {
 	if err != nil {
 		panic(err)

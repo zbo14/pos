@@ -40,7 +40,7 @@ func (v *Verifier) VerifyCommitment(c *Commitment) error {
 	if len(c.Commit) != HASH_SIZE {
 		return errors.New("Incorrect commit length")
 	}
-	verified := c.PubKey.Verify(c.Commit, NewHash(), c.Signature)
+	verified := c.PubKey.Verify(c.Commit, c.Signature)
 	if !verified {
 		return errors.New("Commitment verification failed")
 	}
