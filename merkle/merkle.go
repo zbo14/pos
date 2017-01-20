@@ -1,4 +1,4 @@
-package pos
+package merkle
 
 import (
 	"bytes"
@@ -133,24 +133,24 @@ func (t *Tree) HashLevels() error {
 	return nil
 }
 
-type MerkleProof struct {
+type Proof struct {
 	Branch [][]byte `json:"branch"`
 	Idx    int64    `json:"idx"`
 	Pos    int64    `json:"pos"`
 	Value  []byte   `json:"value"`
 }
 
-func (mp *MerkleProof) String() string {
+func (mp *Proof) String() string {
 	return fmt.Sprintf("MERKLE_PROOF(branch_length=%d,idx=%d,pos=%d,value=%x...)\n",
 		len(mp.Branch), mp.Idx, mp.Pos, mp.Value[:3])
 }
 
 // Get sibling and value from graph
-func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*MerkleProof, error) {
+func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
 	if idx > t.numNodes {
 		return nil, errors.New("Index out of range")
 	}
-	p := new(MerkleProof)
+	p := new(Proof)
 	p.Branch = append(p.Branch, sibling)
 	p.Idx = idx
 	pos := idx + t.numNodes + 1
@@ -170,7 +170,7 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*MerkleProof, err
 	return p, nil
 }
 
-func VerifyProof(p *MerkleProof, root []byte) bool {
+func VerifyProof(p *Proof, root []byte) bool {
 	hash := NewHash()
 	pos := p.Pos
 	value := p.Value

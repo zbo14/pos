@@ -1,8 +1,6 @@
 package chain
 
 import (
-	"encoding/json"
-	"github.com/pkg/errors"
 	. "github.com/zballs/pos/util"
 	"os"
 )
@@ -11,6 +9,8 @@ type Chain struct {
 	ends Int64s
 	file *os.File
 }
+
+// TODO: more config
 
 func NewChain(path string) (*Chain, error) {
 	file, err := os.Create(path)
@@ -22,16 +22,17 @@ func NewChain(path string) (*Chain, error) {
 	}, nil
 }
 
+func (c *Chain) Last() int64 {
+	return c.ends[len(c.ends)-1]
+}
+
 func (c *Chain) Write(b *Block) error {
-	data, err := json.Marshal(b)
-	if err != nil {
-		return err
-	}
+	data := MarshalJSON(b)
 	n, err := c.file.Write(data)
 	if err != nil {
 		return err
-	} else if n != len(data) {
-		return errors.New("Couldn't write entire block")
+	} else if size := len(data); n != size {
+		return Errorf("Expected to write %d bytes; only wrote %d bytes\n", size, n)
 	}
 	end := int64(len(data))
 	if numBlocks := len(c.ends); numBlocks > 0 {
@@ -43,7 +44,7 @@ func (c *Chain) Write(b *Block) error {
 
 func (c *Chain) Read(i int) (*Block, error) {
 	if i < 0 {
-		return nil, errors.New("i cannot be less than zero")
+		return nil, Error("i cannot be less than zero")
 	}
 	var begin, end int64
 	if i > 0 {
@@ -63,12 +64,10 @@ func (c *Chain) Read(i int) (*Block, error) {
 	n, err := c.file.ReadAt(data, begin)
 	if err != nil {
 		return nil, err
-	} else if n != len(data) {
-		return nil, errors.New("Couldn't read entire block")
+	} else if size := len(data); n != size {
+		return nil, Errorf("Expected to write %d bytes; only wrote %d bytes\n", size, n)
 	}
 	b := new(Block)
-	if err = json.Unmarshal(data, b); err != nil {
-		return nil, err
-	}
+	UnmarshalJSON(data, b)
 	return b, nil
 }

@@ -3,16 +3,33 @@ package util
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/sha3"
 	"hash"
 	"math"
+	"math/big"
 )
 
 const (
 	BATCH_SIZE int64 = 100
 	HASH_SIZE        = 32
 )
+
+// JSON
+
+func MarshalJSON(v interface{}) []byte {
+	data, err := json.Marshal(v)
+	Check(err)
+	return data
+}
+
+func UnmarshalJSON(data []byte, v interface{}) {
+	err := json.Unmarshal(data, v)
+	Check(err)
+}
+
+// Hash
 
 func NewHash() hash.Hash {
 	switch HASH_SIZE {
@@ -33,9 +50,21 @@ func NewHash64() hash.Hash {
 	return sha3.New512()
 }
 
-func Shake(hash, data []byte) {
+func Shake32(hash, data []byte) {
 	sha3.ShakeSum256(hash, data)
 }
+
+func Sum32(data []byte) []byte {
+	sum := sha3.Sum256(data)
+	return sum[:]
+}
+
+func Sum64(data []byte) []byte {
+	sum := sha3.Sum512(data)
+	return sum[:]
+}
+
+// Exp
 
 func PowOf2(i int64) bool {
 	return i != 0 && (i&(i-1)) == 0
@@ -70,6 +99,59 @@ func Log2(i int64) int64 {
 	return l + 1
 }
 
+func EvenSquare(n int64) bool {
+	sqrt := math.Sqrt(float64(n))
+	return float64(int64(sqrt)) != sqrt
+}
+
+// Float
+
+var eps = big.NewFloat(float64(0.00000001))
+var zero = big.NewFloat(float64(0))
+var one = big.NewFloat(float64(1))
+
+func Exp2(x float64) float64 {
+	return math.Exp2(x)
+}
+
+func BytesToFloat(data []byte) *big.Float {
+	bigint := new(big.Int).SetBytes(data)
+	return new(big.Float).SetInt(bigint)
+}
+
+func BigPow(a *big.Float, n int64) *big.Float {
+	exp := new(big.Float).Copy(a)
+	if n < 0 {
+		exp.Quo(one, exp)
+		n = -n
+	} else if n == 0 {
+		return one
+	}
+	x := new(big.Float).Copy(one)
+	for i := n; i > 1; i >>= 1 {
+		if i&1 == 1 {
+			x.Mul(exp, x)
+		}
+		exp.Mul(exp, exp)
+	}
+	return exp.Mul(exp, x)
+}
+
+func NRoot(a *big.Float, n int64) *big.Float {
+	mult := new(big.Float).Copy(one)
+	mult.Quo(mult, big.NewFloat(float64(n)))
+	x := new(big.Float).Mul(a, mult)
+	d := new(big.Float)
+	for {
+		exp := BigPow(x, n-1)
+		d.Quo(a, exp).Sub(d, x).Mul(d, mult)
+		if d.Cmp(eps) < 0 && d.Cmp(zero) >= 0 {
+			return x
+		}
+		x.Add(x, d)
+	}
+}
+
 func Rand(max int64) int64 {
 	buf := make([]byte, 8)
 	rand.Read(buf)
@@ -79,11 +161,6 @@ func Rand(max int64) int64 {
 	}
 	i %= max
 	return i
-}
-
-func EvenSquare(n int64) bool {
-	sqrt := math.Sqrt(float64(n))
-	return float64(int64(sqrt)) != sqrt
 }
 
 // Generates a random sequence with length l

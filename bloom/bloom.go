@@ -1,4 +1,4 @@
-package pos
+package bloom
 
 import (
 	"crypto/rand"

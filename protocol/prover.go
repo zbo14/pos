@@ -1,17 +1,10 @@
-package pos
+package protocol
 
 import (
-	// "fmt"
-	"github.com/pkg/errors"
 	"github.com/zballs/pos/crypto"
 	"github.com/zballs/pos/graph"
+	"github.com/zballs/pos/merkle"
 	. "github.com/zballs/pos/util"
-)
-
-const (
-	// Proof types
-	CONSISTENCY_PROOF = 0x01
-	SPACE_PROOF       = 0x02
 )
 
 type Commitment struct {
@@ -20,25 +13,20 @@ type Commitment struct {
 	Signature *crypto.Signature `json:"signature"`
 }
 
-type Proof interface {
-	IsProofType() byte
-}
-
 type ConsistencyProof struct {
-	ParentProofs [][]*MerkleProof  `json:"parent_proofs"`
-	Proofs       []*MerkleProof    `json:"proofs"`
+	ParentProofs [][]*merkle.Proof `json:"parent_proofs"`
+	Proofs       []*merkle.Proof   `json:"proofs"`
 	PubKey       *crypto.PublicKey `json:"public_key"`
+	Seed         []byte            `json:"seed"`
 	Size         int64             `json:"size"`
 }
 
 type SpaceProof struct {
-	Proofs []*MerkleProof    `json:"proofs"`
+	Proofs []*merkle.Proof   `json:"proofs"`
 	PubKey *crypto.PublicKey `json:"public_key"`
+	Seed   []byte            `json:"seed"`
 	Size   int64             `json:"size"`
 }
-
-func (_ *ConsistencyProof) IsProofType() byte { return CONSISTENCY_PROOF }
-func (_ *SpaceProof) IsProofType() byte       { return SPACE_PROOF }
 
 // Do we need `space` (i.e. *os.File) if we're
 // storing values in the graph+tree leveldbs
@@ -47,18 +35,18 @@ func (_ *SpaceProof) IsProofType() byte       { return SPACE_PROOF }
 type Prover struct {
 	commit []byte //merkle root hash
 	graph  *graph.Graph
-	priv   *crypto.PrivateKey
-	tree   *Tree
+	Priv   *crypto.PrivateKey
+	tree   *merkle.Tree
 }
 
 func NewProver(priv *crypto.PrivateKey) *Prover {
 	return &Prover{
-		priv: priv,
+		Priv: priv,
 	}
 }
 
 func (p *Prover) MerkleTree(id int) error {
-	tree, err := NewTree(id)
+	tree, err := merkle.NewTree(id)
 	if err != nil {
 		return err
 	}
@@ -66,35 +54,38 @@ func (p *Prover) MerkleTree(id int) error {
 	return nil
 }
 
-func (p *Prover) GraphDoubleButterfly(id int) error {
-	g, err := graph.DefaultDoubleButterfly(id)
+func (p *Prover) Graph(id int, _type string) (err error) {
+	switch _type {
+	case graph.DOUBLE_BUTTERFLY:
+		p.graph, err = graph.DefaultDoubleButterfly(id)
+	case graph.LINEAR_SUPER_CONCENTRATOR:
+		p.graph, err = graph.DefaultLinearSuperConcentrator(id)
+	case graph.STACKED_EXPANDERS:
+		p.graph, err = graph.DefaultStackedExpanders(id)
+	default:
+		return Errorf("Unexpected graph type: %s\n", _type)
+	}
 	if err != nil {
+		p.graph = nil
 		return err
 	}
-	p.graph = g
 	return nil
+}
+
+func (p *Prover) GraphDoubleButterfly(id int) error {
+	return p.Graph(id, graph.DOUBLE_BUTTERFLY)
 }
 
 func (p *Prover) GraphLinearSuperConcentrator(id int) error {
-	g, err := graph.DefaultLinearSuperConcentrator(id)
-	if err != nil {
-		return err
-	}
-	p.graph = g
-	return nil
+	return p.Graph(id, graph.LINEAR_SUPER_CONCENTRATOR)
 }
 
 func (p *Prover) GraphStackedExpanders(id int) error {
-	g, err := graph.DefaultStackedExpanders(id)
-	if err != nil {
-		return err
-	}
-	p.graph = g
-	return nil
+	return p.Graph(id, graph.STACKED_EXPANDERS)
 }
 
 func (p *Prover) Commit() error {
-	pub := p.priv.Public()
+	pub := p.Priv.Public()
 	if err := p.graph.SetValues(pub); err != nil {
 		return err
 	}
@@ -125,10 +116,10 @@ func (p *Prover) Commit() error {
 
 func (p *Prover) MakeCommitment() (*Commitment, error) {
 	if len(p.commit) == 0 {
-		return nil, errors.New("Commit is not set")
+		return nil, Error("Commit is not set")
 	}
-	pub := p.priv.Public()
-	sig := p.priv.Sign(p.commit)
+	pub := p.Priv.Public()
+	sig := p.Priv.Sign(p.commit)
 	return &Commitment{
 		Commit:    p.commit,
 		PubKey:    pub,
@@ -136,25 +127,25 @@ func (p *Prover) MakeCommitment() (*Commitment, error) {
 	}, nil
 }
 
-func (p *Prover) NewConsistencyProof(parentProofs [][]*MerkleProof, proofs []*MerkleProof) *ConsistencyProof {
+func (p *Prover) NewConsistencyProof(parentProofs [][]*merkle.Proof, proofs []*merkle.Proof) *ConsistencyProof {
 	return &ConsistencyProof{
 		ParentProofs: parentProofs,
 		Proofs:       proofs,
-		PubKey:       p.priv.Public(),
+		PubKey:       p.Priv.Public(),
 		Size:         p.graph.Size(),
 	}
 }
 
 func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error) {
 	if p.graph == nil { // overkill?
-		return nil, errors.New("Graph is not set")
+		return nil, Error("Graph is not set")
 	}
 	if p.tree == nil {
-		return nil, errors.New("Tree is not set")
+		return nil, Error("Tree is not set")
 	}
 	var parents Int64s
-	proofs := make([]*MerkleProof, len(challenges))
-	parentProofs := make([][]*MerkleProof, len(challenges))
+	proofs := make([]*merkle.Proof, len(challenges))
+	parentProofs := make([][]*merkle.Proof, len(challenges))
 	for i, c := range challenges {
 		sibling, err := p.graph.Get(c ^ 1)
 		if err != nil {
@@ -173,7 +164,7 @@ func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error)
 			return nil, err
 		}
 		if len(parents) > 0 {
-			parentProofs[i] = make([]*MerkleProof, len(parents))
+			parentProofs[i] = make([]*merkle.Proof, len(parents))
 			for j, parent := range parents { //should be sorted
 				sibling, err = p.graph.Get(parent ^ 1)
 				if err != nil {
@@ -194,22 +185,22 @@ func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error)
 	return commitmentProof, nil
 }
 
-func (p *Prover) NewSpaceProof(proofs []*MerkleProof) *SpaceProof {
+func (p *Prover) NewSpaceProof(proofs []*merkle.Proof) *SpaceProof {
 	return &SpaceProof{
 		Proofs: proofs,
-		PubKey: p.priv.Public(),
+		PubKey: p.Priv.Public(),
 		Size:   p.graph.Size(),
 	}
 }
 
 func (p *Prover) ProveSpace(challenges []int64) (*SpaceProof, error) {
 	if p.graph == nil {
-		return nil, errors.New("Graph is not set")
+		return nil, Error("Graph is not set")
 	}
 	if p.tree == nil {
-		return nil, errors.New("Tree is not set")
+		return nil, Error("Tree is not set")
 	}
-	proofs := make([]*MerkleProof, len(challenges))
+	proofs := make([]*merkle.Proof, len(challenges))
 	for i, c := range challenges {
 		sibling, err := p.graph.Get(c ^ 1)
 		if err != nil {
