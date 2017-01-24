@@ -39,20 +39,18 @@ func (v *Verifier) GraphSize() int64 {
 
 // (1)
 
-func (v *Verifier) VerifyCommitment(c *Commitment) error {
-	if len(c.Commit) != HASH_SIZE {
+func (v *Verifier) ReceiveCommit(commit []byte, pub *crypto.PublicKey) error {
+	if len(commit) != HASH_SIZE {
 		return Error("Incorrect commit length")
+	} else if pub == nil {
+		return Error("No public key")
 	}
-	verified := c.PubKey.Verify(c.Commit, c.Signature)
-	if !verified {
-		return Error("Commitment verification failed")
-	}
-	v.commit = c.Commit
-	v.pub = c.PubKey
+	v.commit = commit
+	v.pub = pub
 	return nil
 }
 
-func (v *Verifier) ConsistencyChallenges(seed []byte) (Int64s, error) {
+func (v *Verifier) CommitChallenges(seed []byte) (Int64s, error) {
 	if size := len(seed); size != SEED_SIZE {
 		return nil, Errorf("Expected seed with size=%d; got size=%d\n", SEED_SIZE, size)
 	}
@@ -86,23 +84,23 @@ func (v *Verifier) SampleChallenges(seed []byte, param int) (Int64s, error) {
 
 // (2)
 
-func (v *Verifier) VerifyConsistency(consistency *ConsistencyProof) error {
-	if len(consistency.Proofs) != v.alpha {
+func (v *Verifier) VerifyCommit(commitProof *CommitProof) error {
+	if len(commitProof.Proofs) != v.alpha {
 		return Error("Incorrect number of proofs")
-	} else if len(consistency.ParentProofs) != v.alpha {
+	} else if len(commitProof.ParentProofs) != v.alpha {
 		return Error("Incorrect number of parent proofs")
 	}
 	hash := NewHash()
-	pkbz, _ := v.pub.MarshalBinary()
+	pkbz := v.pub.Bytes()
 	for i, c := range v.challenges {
 		value := append(pkbz, Int64Bytes(c)...)
-		proof := consistency.Proofs[i]
+		proof := commitProof.Proofs[i]
 		if proof.Idx != c {
 			return Error("Proof has incorrect idx")
 		} else if !merkle.VerifyProof(proof, v.commit) {
 			return Error("Proof verification failed")
 		}
-		for _, p := range consistency.ParentProofs[i] {
+		for _, p := range commitProof.ParentProofs[i] {
 			if p.Idx >= c {
 				return Error("Parent proof has invalid idx")
 			} else if !merkle.VerifyProof(p, v.commit) {
@@ -122,12 +120,12 @@ func (v *Verifier) VerifyConsistency(consistency *ConsistencyProof) error {
 
 // (3)
 
-func (v *Verifier) VerifySpace(space *SpaceProof) error {
-	if len(space.Proofs) != v.beta {
+func (v *Verifier) VerifySpace(spaceProof *SpaceProof) error {
+	if len(spaceProof.Proofs) != v.beta {
 		return Error("Incorrect number of proofs")
 	}
 	for i, c := range v.challenges {
-		proof := space.Proofs[i]
+		proof := spaceProof.Proofs[i]
 		if proof.Idx != c {
 			return Error("Proof has incorrect idx")
 		} else if !merkle.VerifyProof(proof, v.commit) {

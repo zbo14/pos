@@ -18,7 +18,7 @@ type Client struct {
 	Delta    int
 	Prover   *proto.Prover
 	seed     []byte
-	Txs      []chain.Tx
+	Txs      []*chain.Tx
 	Verifier *proto.Verifier
 }
 
@@ -59,7 +59,9 @@ func (cli *Client) Init(id int) (err error) {
 	}
 	commit := cli.Prover.Commit
 	pub := cli.Prover.Pub()
-	tx := chain.NewTxCommit(commit, pub, 0) // what should txId be?
+	txCommit := chain.NewTxCommit(commit, pub, 0) // what should txId be?
+	tx, err := chain.NewTx(txCommit)
+	Check(err)
 	cli.Txs = append(cli.Txs, tx)
 	return nil
 }
@@ -174,6 +176,8 @@ func (cli *Client) Round() {
 	commitProof := cli.MineCommit()
 	// Create new block
 	newb := chain.NewBlock(commitProof, lastb, priv, spaceProof, cli.Txs)
-	fmt.Println(newb)
+	//----- For testing -----//
+	err = cli.Chain.Write(newb)
+	Check(err)
 	// TODO: send new_block to peers in network
 }

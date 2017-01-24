@@ -22,12 +22,12 @@ func NewChain(path string) (*Chain, error) {
 	}, nil
 }
 
-func (c *Chain) Last() int64 {
-	return c.ends[len(c.ends)-1]
+func (c *Chain) Last() int {
+	return len(c.ends) - 1
 }
 
 func (c *Chain) Write(b *Block) error {
-	data := MarshalJSON(b)
+	data := b.Serialize()
 	n, err := c.file.Write(data)
 	if err != nil {
 		return err
@@ -42,16 +42,17 @@ func (c *Chain) Write(b *Block) error {
 	return nil
 }
 
-func (c *Chain) Read(i int) (*Block, error) {
-	if i < 0 {
+func (c *Chain) Read(id int) (*Block, error) {
+	// id should not overflow int
+	if id < 0 {
 		return nil, Error("i cannot be less than zero")
 	}
 	var begin, end int64
-	if i > 0 {
-		begin = c.ends[i-1]
+	if id > 0 {
+		begin = c.ends[id-1]
 	}
-	if i < len(c.ends) {
-		end = c.ends[i]
+	if id < len(c.ends) {
+		end = c.ends[id]
 	} else {
 		// just set end to file_size
 		stat, err := c.file.Stat()

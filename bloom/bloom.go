@@ -5,80 +5,94 @@ import (
 	"encoding/binary"
 )
 
-const ITER = 3
+const ITERS = 3
 
-type BloomFilter []byte
-
-func NewBloomFilter(capacity int64) BloomFilter {
-	bytes := make([]byte, 5*capacity/4) // 10 bits per member
-	return BloomFilter(bytes)
+type Filter struct {
+	bytes []byte
+	seed  uint64
 }
 
-func (bloom BloomFilter) getIdx(pos int64) int64 {
-	return int64(len(bloom)-1) - (pos / 8)
+func NewFilter(capacity int) *Filter {
+	// at least 10 bits per item
+	var length int
+	size := 10 * capacity
+	if length = size / 8; size%8 != 0 {
+		length++
+	}
+	bytes := make([]byte, length)
+	buf := make([]byte, 8)
+	rand.Read(buf)
+	seed := binary.BigEndian.Uint64(buf)
+	return &Filter{
+		bytes: bytes,
+		seed:  seed,
+	}
 }
 
-func (bloom BloomFilter) length() int64 {
-	return int64(len(bloom))
+func (f *Filter) getIdx(pos uint64) uint64 {
+	return uint64(len(f.bytes)-1) - (pos / 8)
 }
 
-func (bloom BloomFilter) size() int64 {
-	return bloom.length() * 8
+func (f *Filter) length() uint64 {
+	return uint64(len(f.bytes))
 }
 
-func (bloom BloomFilter) setBit(pos int64) {
-	idx := bloom.getIdx(pos)
-	b := bloom[idx]
-	b |= (1 << uint64(pos%8))
-	bloom[idx] = b
+func (f *Filter) size() uint64 {
+	return f.length() * 8
 }
 
-func (bloom BloomFilter) hasBit(pos int64) bool {
-	idx := bloom.getIdx(pos)
-	b := bloom[idx]
-	val := b & (1 << uint64(pos%8))
+func (f *Filter) setBit(pos uint64) {
+	idx := f.getIdx(pos)
+	b := f.bytes[idx]
+	b |= (1 << (pos % 8))
+	f.bytes[idx] = b
+}
+
+func (f *Filter) hasBit(pos uint64) bool {
+	idx := f.getIdx(pos)
+	b := f.bytes[idx]
+	val := b & (1 << (pos % 8))
 	return (val > 0)
 }
 
 // Murmur Hash
 
 const (
-	c1     int64 = 0xcc9e2d51
-	c2     int64 = 0x1b873593
-	n      int64 = 0xe6546b64
-	round4 int64 = 0xfffffffc
-	seed   int64 = 0x0
+	C1     uint64 = 0xcc9e2d51
+	C2     uint64 = 0x1b873593
+	N      uint64 = 0xe6546b64
+	ROUND4 uint64 = 0xfffffffc
 )
 
-func (bloom BloomFilter) murmurHash(data []byte, seed int64) int64 {
+func MurmurHash(bytes []byte, seed uint64) uint64 {
 	h := seed
-	length := int64(len(data))
-	roundedEnd := length & round4
-	var i int64
-	var k int64
+	length := uint64(len(bytes))
+	roundedEnd := length & ROUND4
+	var i uint64
+	var k uint64
 	for i = 0; i < roundedEnd; i += 4 {
-		b0, b1, b2, b3 := data[i], data[i+1], data[i+2], data[i+3]
-		k := int64(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24))
-		k *= c1
+		b0, b1, b2, b3 := bytes[i], bytes[i+1], bytes[i+2], bytes[i+3]
+		k := uint64(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24))
+		k *= C1
 		k = (k << 15) | (k >> 17)
-		k *= c2
+		k *= C2
 		h ^= k
 		h = (h << 13) | (h >> 19)
-		h = h*5 + n
+		h = h*5 + N
 	}
 	k = 0
 	val := length & 0x03
 	if val == 3 {
-		k = int64(data[roundedEnd+2] << 16)
+		k = uint64(bytes[roundedEnd+2] << 16)
 	}
 	if val >= 2 {
-		k |= int64(data[roundedEnd+1] << 8)
+		k |= uint64(bytes[roundedEnd+1] << 8)
 	}
 	if val >= 1 {
-		k |= int64(data[roundedEnd])
-		k *= c1
+		k |= uint64(bytes[roundedEnd])
+		k *= C1
 		k = (k << 15) | (k >> 17)
-		k *= c2
+		k *= C2
 		h ^= k
 	}
 	h ^= length
@@ -90,10 +104,28 @@ func (bloom BloomFilter) murmurHash(data []byte, seed int64) int64 {
 	return h
 }
 
-func (bloom BloomFilter) jenkinsHash(data []byte) int64 {
-	var hash int64
-	for _, b := range data {
-		hash += int64(b)
+// FNV Hash
+
+const (
+	FNV_OFFSET_BASIS uint64 = 0xcbf29ce484222325
+	FNV_PRIME        uint64 = 0x100000001b3
+)
+
+func FnvHash(bytes []byte) uint64 {
+	hash := FNV_OFFSET_BASIS
+	for _, b := range bytes {
+		hash *= FNV_PRIME
+		hash |= uint64(b)
+	}
+	return hash
+}
+
+// Jenkins Hash
+
+func JenkinsHash(bytes []byte) uint64 {
+	var hash uint64
+	for _, b := range bytes {
+		hash += uint64(b)
 		hash += (hash << 10)
 		hash ^= (hash >> 6)
 	}
@@ -103,39 +135,38 @@ func (bloom BloomFilter) jenkinsHash(data []byte) int64 {
 	return hash
 }
 
-func (bloom BloomFilter) Has(data []byte) bool {
-	hash := bloom.murmurHash(data, seed)
-	var i int64
-	for ; i < ITER; i++ {
-		hash += bloom.jenkinsHash(data)
-		pos := hash % bloom.size()
-		if !bloom.hasBit(pos) {
+func (f *Filter) Has(bytes []byte) bool {
+	hash := MurmurHash(bytes, f.seed)
+	size := f.size()
+	var i uint64
+	for ; i < ITERS; i++ {
+		hash += FnvHash(bytes)
+		pos := hash % size
+		if !f.hasBit(pos) {
 			return false
 		}
 	}
 	return true
 }
 
-func (bloom BloomFilter) setBits(data []byte) {
-	randbz := make([]byte, 8)
-	rand.Read(randbz)
-	seed, _ := binary.Varint(randbz)
-	hash := bloom.murmurHash(data, seed)
-	size := bloom.size()
-	var i int64
-	for ; i < ITER; i++ {
-		hash += bloom.jenkinsHash(data)
+func (f *Filter) setBits(bytes []byte) {
+	hash := MurmurHash(bytes, f.seed)
+	size := f.size()
+	var i uint64
+	for ; i < ITERS; i++ {
+		hash += FnvHash(bytes)
 		pos := hash % size
-		if !bloom.hasBit(pos) {
-			bloom.setBit(pos)
+		if !f.hasBit(pos) {
+			f.setBit(pos)
 		}
 	}
 }
 
-func (bloom BloomFilter) Add(data []byte) bool {
-	if bloom.Has(data) {
+func (f *Filter) Add(bytes []byte) bool {
+	if f.Has(bytes) {
 		return false
 	}
-	bloom.setBits(data)
+	f.setBits(bytes)
+	f.count++
 	return true
 }

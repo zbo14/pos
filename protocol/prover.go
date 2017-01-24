@@ -7,13 +7,15 @@ import (
 	. "github.com/zballs/pos/util"
 )
 
+/*
 type Commitment struct {
 	Commit    []byte            `json:"commit"`
 	PubKey    *crypto.PublicKey `json:"public_key"`
 	Signature *crypto.Signature `json:"signature"`
 }
+*/
 
-type ConsistencyProof struct {
+type CommitProof struct {
 	ParentProofs [][]*merkle.Proof `json:"parent_proofs"`
 	Proofs       []*merkle.Proof   `json:"proofs"`
 	PubKey       *crypto.PublicKey `json:"public_key"`
@@ -33,7 +35,7 @@ type SpaceProof struct {
 // which are on disk? I thinks not
 
 type Prover struct {
-	commit []byte //merkle root hash
+	Commit []byte //merkle root hash
 	graph  *graph.Graph
 	Priv   *crypto.PrivateKey
 	tree   *merkle.Tree
@@ -43,6 +45,10 @@ func NewProver(priv *crypto.PrivateKey) *Prover {
 	return &Prover{
 		Priv: priv,
 	}
+}
+
+func (p *Prover) Pub() *crypto.PublicKey {
+	return p.Priv.Public()
 }
 
 func (p *Prover) MerkleTree(id int) error {
@@ -84,7 +90,7 @@ func (p *Prover) GraphStackedExpanders(id int) error {
 	return p.Graph(id, graph.STACKED_EXPANDERS)
 }
 
-func (p *Prover) Commit() error {
+func (p *Prover) MakeCommit() error {
 	pub := p.Priv.Public()
 	if err := p.graph.SetValues(pub); err != nil {
 		return err
@@ -110,25 +116,27 @@ func (p *Prover) Commit() error {
 	if err != nil {
 		return err
 	}
-	p.commit = commit
+	p.Commit = commit
 	return nil
 }
 
+/*
 func (p *Prover) MakeCommitment() (*Commitment, error) {
-	if len(p.commit) == 0 {
+	if len(p.Commit) == 0 {
 		return nil, Error("Commit is not set")
 	}
 	pub := p.Priv.Public()
-	sig := p.Priv.Sign(p.commit)
+	sig := p.Priv.Sign(p.Commit)
 	return &Commitment{
-		Commit:    p.commit,
+		Commit:    p.Commit,
 		PubKey:    pub,
 		Signature: sig,
 	}, nil
 }
+*/
 
-func (p *Prover) NewConsistencyProof(parentProofs [][]*merkle.Proof, proofs []*merkle.Proof) *ConsistencyProof {
-	return &ConsistencyProof{
+func (p *Prover) NewCommitProof(parentProofs [][]*merkle.Proof, proofs []*merkle.Proof) *CommitProof {
+	return &CommitProof{
 		ParentProofs: parentProofs,
 		Proofs:       proofs,
 		PubKey:       p.Priv.Public(),
@@ -136,7 +144,7 @@ func (p *Prover) NewConsistencyProof(parentProofs [][]*merkle.Proof, proofs []*m
 	}
 }
 
-func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error) {
+func (p *Prover) ProveCommit(challenges []int64) (*CommitProof, error) {
 	if p.graph == nil { // overkill?
 		return nil, Error("Graph is not set")
 	}
@@ -181,8 +189,8 @@ func (p *Prover) ProveConsistency(challenges []int64) (*ConsistencyProof, error)
 			}
 		}
 	}
-	commitmentProof := p.NewConsistencyProof(parentProofs, proofs)
-	return commitmentProof, nil
+	commitProof := p.NewCommitProof(parentProofs, proofs)
+	return commitProof, nil
 }
 
 func (p *Prover) NewSpaceProof(proofs []*merkle.Proof) *SpaceProof {

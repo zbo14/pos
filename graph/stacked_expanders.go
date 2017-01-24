@@ -12,7 +12,7 @@ type StackedExpanders struct {
 func (_ *StackedExpanders) IsGraphType() string { return STACKED_EXPANDERS }
 
 func DefaultStackedExpanders(id int) (*Graph, error) {
-	return ConstructStackedExpanders(id, 256, 8, 4, false)
+	return ConstructStackedExpanders(id, 2048, 31, 5, false) //size = 65536
 }
 
 // Adapted from "Proof of Space from Stacked Expanders", 2016 (Ren, Devadas)
@@ -120,13 +120,13 @@ func (stacked *StackedExpanders) ChungExpander(m, n, d int64) error {
 		}
 		if nd.NoParents() {
 			if !nd.AddParent(src) {
-				return errors.New("Failed to add parent")
+				return Error("Failed to add parent")
 			}
 		} else {
 			for iter = 1; ; iter++ {
 				if sink+iter >= m+2*n {
 					if sink-iter < m+n {
-						return errors.New("Could not pair source with sink")
+						return Error("Could not pair source with sink")
 					}
 				}
 				if sink+iter < m+2*n {
@@ -136,7 +136,7 @@ func (stacked *StackedExpanders) ChungExpander(m, n, d int64) error {
 					}
 					if nd.NoParents() {
 						if !nd.AddParent(src) {
-							return errors.New("Failed to add parent")
+							return Error("Failed to add parent")
 						}
 						break
 					}
@@ -148,7 +148,7 @@ func (stacked *StackedExpanders) ChungExpander(m, n, d int64) error {
 					}
 					if nd.NoParents() {
 						if !nd.AddParent(src) {
-							return errors.New("Failed to add parent")
+							return Error("Failed to add parent")
 						}
 						break
 					}
@@ -172,7 +172,7 @@ func (stacked *StackedExpanders) ChungExpander(m, n, d int64) error {
 				src = m - iter
 			}
 			if !nd.AddParent(src + iter) {
-				return errors.New("Failed to add parent")
+				return Error("Failed to add parent")
 			}
 		}
 		stacked.putBatch(nd)

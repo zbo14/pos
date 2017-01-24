@@ -2,7 +2,6 @@ package graph
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/zballs/pos/crypto"
 	. "github.com/zballs/pos/util"
@@ -35,7 +34,7 @@ func NewGraph(id int, size int64, _type string) (g *Graph, err error) {
 		LINEAR_SUPER_CONCENTRATOR,
 		STACKED_EXPANDERS:
 	default:
-		return nil, errors.New("Invalid graph type")
+		return nil, Error("Invalid graph type")
 	}
 	path := filepath.Join("Graph", _type, strconv.Itoa(id))
 	g = new(Graph)
@@ -54,7 +53,7 @@ func (g *Graph) Size() int64 {
 
 func (g *Graph) SetType(impl GraphType) error {
 	if g.impl != nil {
-		return errors.New("Graph type already set")
+		return Error("Graph type already set")
 	}
 	g.impl = impl
 	return nil
@@ -62,8 +61,10 @@ func (g *Graph) SetType(impl GraphType) error {
 
 // Get node
 func (g *Graph) Get(idx int64) (*Node, error) {
-	if idx < 0 || idx >= g.size {
-		return nil, errors.New("Index out of range")
+	if idx < 0 {
+		return nil, Error("Idx cannot be less than 0")
+	} else if idx >= g.size {
+		return nil, Errorf("Expected idx < %d; got idx=%d\n", g.size, idx)
 	}
 	key := Int64Bytes(idx)
 	data, err := g.db.Get(key, nil)
@@ -74,7 +75,7 @@ func (g *Graph) Get(idx int64) (*Node, error) {
 	if err = nd.UnmarshalBinary(data); err != nil {
 		return nil, err
 	} else if nd.Idx != idx {
-		return nil, errors.New("Node has incorrect idx")
+		return nil, Error("Node has incorrect idx")
 	}
 	return nd, nil
 }
@@ -108,7 +109,7 @@ func (g *Graph) writeBatch() error {
 
 func (g *Graph) SetValues(pub *crypto.PublicKey) error {
 	hash := NewHash()
-	pkbz, _ := pub.MarshalBinary()
+	pkbz := pub.Bytes()
 	var idx int64
 	for ; idx < g.size; idx++ {
 		nd, err := g.Get(idx)
@@ -123,7 +124,7 @@ func (g *Graph) SetValues(pub *crypto.PublicKey) error {
 				if err != nil {
 					return err
 				} else if len(parent.Value) == 0 {
-					return errors.Errorf("Cannot set value for idx=%d; parent idx=%d does not have value", nd.Idx, parent.Idx)
+					return Errorf("Cannot set value for idx=%d; parent idx=%d does not have value", nd.Idx, parent.Idx)
 				}
 				bz = append(bz, parent.Value...)
 			}

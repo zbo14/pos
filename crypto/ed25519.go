@@ -71,49 +71,44 @@ func (priv *PrivateKey) Public() *PublicKey {
 	return pub
 }
 
-func (priv *PrivateKey) MarshalBinary() ([]byte, error) {
-	return priv.data[:], nil
-}
-
-func (priv *PrivateKey) UnmarshalBinary(data []byte) (err error) {
-	priv, err = NewPrivateKey(data)
-	if err != nil {
-		priv = nil
-		return err
-	}
-	return nil
-}
-
 // Public Key
 
 func (pub *PublicKey) Verify(message []byte, sig *Signature) bool {
 	return ed25519.Verify(pub.data, message, sig.data)
 }
 
-func (pub *PublicKey) MarshalBinary() ([]byte, error) {
-	return pub.data[:], nil
+func (pub *PublicKey) Bytes() []byte {
+	return pub.data[:]
 }
 
-func (pub *PublicKey) UnmarshalBinary(data []byte) (err error) {
-	pub, err = NewPublicKey(data)
-	if err != nil {
-		pub = nil
-		return err
+func (pub *PublicKey) MarshalJSON() ([]byte, error) {
+	data := MarshalJSON(pub.Bytes())
+	return data, nil
+}
+
+func (pub *PublicKey) UnmarshalJSON(data []byte) (err error) {
+	UnmarshalJSON(data, &pub.data)
+	if size := len(pub.data); size != PUBKEY_SIZE {
+		return Errorf("Expected pubkey with size=%d; got size=%d\n", PUBKEY_SIZE, size)
 	}
 	return nil
 }
 
 // Signature
 
-func (sig *Signature) MarshalBinary() ([]byte, error) {
-	return sig.data[:], nil
+func (sig *Signature) Bytes() []byte {
+	return sig.data[:]
 }
 
-func (sig *Signature) UnmarshalBinary(data []byte) (err error) {
-	sig, err = NewSignature(data)
-	if err != nil {
-		sig = nil
-		return err
+func (sig *Signature) MarshalJSON() ([]byte, error) {
+	data := MarshalJSON(sig.Bytes())
+	return data, nil
+}
+
+func (sig *Signature) UnmarshalJSON(data []byte) (err error) {
+	UnmarshalJSON(data, &sig.data)
+	if size := len(sig.data); size != SIGNATURE_SIZE {
+		return Errorf("Expected signature with size=%d; got size=%d\n", SIGNATURE_SIZE, size)
 	}
 	return nil
 }

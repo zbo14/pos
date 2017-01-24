@@ -8,9 +8,9 @@ import (
 )
 
 type Node struct {
-	Idx     int64
-	Parents Int64s
-	Value   []byte
+	Idx     int64  `json:"idx"`
+	Parents Int64s `json:"parents"`
+	Value   []byte `json:"value"`
 }
 
 func NewNode(idx int64) *Node {

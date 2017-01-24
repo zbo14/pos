@@ -3,7 +3,6 @@ package merkle
 import (
 	"bytes"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	. "github.com/zballs/pos/util"
 	"path/filepath"
@@ -12,7 +11,7 @@ import (
 
 // This merkle tree has a leveldb which
 // stores the parent hashes of the values
-// contained in the graph..
+// contained in a graph..
 
 type Tree struct {
 	batch     *leveldb.Batch
@@ -59,7 +58,7 @@ func (t *Tree) Root() ([]byte, error) {
 func (t *Tree) AddLeaf(value []byte) error {
 	if t.leafCount == t.numLeaves {
 		// shouldn't happen..
-		return errors.New("Cannot add leaf; maximum capacity reached")
+		return Error("Cannot add leaf; maximum capacity reached")
 	}
 	if t.leafCount&1 == 0 {
 		t.value = value
@@ -147,8 +146,11 @@ func (mp *Proof) String() string {
 
 // Get sibling and value from graph
 func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
-	if idx > t.numNodes {
-		return nil, errors.New("Index out of range")
+	if idx < 0 {
+		return nil, Error("Idxs cannot be less than 0")
+	}
+	if idx >= t.numLeaves {
+		return nil, Errorf("Expected idx < %d; got idx=%d\n", t.numLeaves, idx)
 	}
 	p := new(Proof)
 	p.Branch = append(p.Branch, sibling)
@@ -158,7 +160,7 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
 	p.Value = value
 	for {
 		if pos >>= 1; pos == 1 {
-			break
+			return p, nil
 		}
 		key := Int64Bytes(pos ^ 1)
 		val, err := t.db.Get(key, nil)
@@ -167,7 +169,6 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
 		}
 		p.Branch = append(p.Branch, val)
 	}
-	return p, nil
 }
 
 func VerifyProof(p *Proof, root []byte) bool {

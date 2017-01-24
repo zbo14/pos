@@ -1,7 +1,7 @@
 package client
 
 import (
-	"fmt"
+	// "fmt"
 	"github.com/zballs/pos/chain"
 	"testing"
 )
@@ -25,5 +25,10 @@ func TestClient(t *testing.T) {
 	priv := cli.Prover.Priv
 	// Create genesis block
 	genesis := chain.GenesisBlock(commitProof, priv, spaceProof, cli.Txs)
-	fmt.Println(genesis)
+	// Write genesis block to chain
+	if err := cli.Chain.Write(genesis); err != nil {
+		t.Error(err.Error())
+	}
+	// Generate new block in round
+	cli.Round()
 }
