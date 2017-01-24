@@ -1,9 +1,6 @@
 package graph
 
-import (
-	"github.com/pkg/errors"
-	. "github.com/zballs/pos/util"
-)
+import . "github.com/zballs/pos/util"
 
 type DoubleButterfly struct {
 	*Graph
@@ -11,24 +8,21 @@ type DoubleButterfly struct {
 
 func (_ *DoubleButterfly) IsGraphType() string { return DOUBLE_BUTTERFLY }
 
-func DefaultDoubleButterfly(id int) (*Graph, error) {
+func DefaultDoubleButterfly(id int) *Graph {
 	return ConstructDoubleButterfly(id, 3, 4)
 }
 
 // Double Butterfly graph
-func ConstructDoubleButterfly(id int, g, l int64) (graph *Graph, err error) {
+func ConstructDoubleButterfly(id int, g, l int64) *Graph {
 	if g < 1 {
-		return nil, errors.New("g cannot be less than 1")
+		panic("g cannot be less than 1")
 	}
 	vertsPerRow := Pow2(g)
 	rowsPerSection := 2 * g
 	sectionSize := vertsPerRow * rowsPerSection
 	size := vertsPerRow * (l*(rowsPerSection-1) + 1)
 	bfly := new(DoubleButterfly)
-	bfly.Graph, err = NewGraph(id, size, DOUBLE_BUTTERFLY)
-	if err != nil {
-		return nil, err
-	}
+	bfly.Graph = NewGraph(id, size, DOUBLE_BUTTERFLY)
 	var i, j, k int64
 	var add bool
 	var nd *Node
@@ -36,16 +30,11 @@ func ConstructDoubleButterfly(id int, g, l int64) (graph *Graph, err error) {
 		nd = NewNode(i)
 		bfly.putBatch(nd)
 		if (i+1)%BATCH_SIZE == 0 || i+1 == bfly.size {
-			if err := bfly.writeBatch(); err != nil {
-				return nil, err
-			}
+			bfly.writeBatch()
 		}
 	}
 	for i, j = 1, vertsPerRow; i < bfly.size; i++ {
-		nd, err := bfly.Get(i)
-		if err != nil {
-			return nil, err
-		}
+		nd := bfly.Get(i)
 		// Add sequential edge
 		nd.AddParent(i - 1)
 		if i >= vertsPerRow {
@@ -76,14 +65,12 @@ func ConstructDoubleButterfly(id int, g, l int64) (graph *Graph, err error) {
 		}
 		bfly.putBatch(nd)
 		if i%BATCH_SIZE == 0 || i+1 == bfly.size {
-			if err := bfly.writeBatch(); err != nil {
-				return nil, err
-			}
+			bfly.writeBatch()
 		}
 	}
-	graph = bfly.Graph
-	if err = graph.SetType(bfly); err != nil {
-		return nil, err
+	graph := bfly.Graph
+	if !graph.SetType(bfly) {
+		panic("Graph type already set")
 	}
-	return graph, nil
+	return graph
 }

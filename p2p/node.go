@@ -29,13 +29,12 @@ type Node struct {
 	sw          *gop2p.Switch
 }
 
-func NewConfig(bookPath, configPath, input, laddr, output, password, seeds string, seedsLimit int) cfg.Config {
+func NewConfig(bookPath, configPath, input, laddr, output string, priv crypto.PrivKeyEd25519, seeds string, seedsLimit int) cfg.Config {
 	data := make(map[string]interface{})
 	data["book_path"] = bookPath
 	data["input"] = input
 	data["laddr"] = laddr
 	data["output"] = output
-	priv := tndr.GeneratePrivKey(password)
 	data["priv_key"] = tndr.PrivKeyToB58(priv)
 	data["seeds"] = seeds
 	data["seeds_limit"] = seedsLimit
@@ -83,7 +82,6 @@ func NewNode(config cfg.Config) *Node {
 func (nd *Node) Start() error {
 	ndInfo := newNodeInfo(nd.config, nd.sw, nd.priv)
 	nd.sw.SetNodeInfo(ndInfo)
-	nd.sw.SetNodePrivKey(nd.priv)
 	nd.sw.SetNodePrivKey(nd.priv)
 	_, err := nd.sw.Start()
 	return err

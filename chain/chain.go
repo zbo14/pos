@@ -10,16 +10,11 @@ type Chain struct {
 	file *os.File
 }
 
-// TODO: more config
-
-func NewChain(path string) (*Chain, error) {
-	file, err := os.Create(path)
-	if err != nil {
-		return nil, err
-	}
+func NewChain(chainPath string) *Chain {
+	file := MustCreateFile(chainPath)
 	return &Chain{
 		file: file,
-	}, nil
+	}
 }
 
 func (c *Chain) Last() int {
@@ -42,10 +37,15 @@ func (c *Chain) Write(b *Block) error {
 	return nil
 }
 
+func (c *Chain) MustWrite(b *Block) {
+	err := c.Write(b)
+	Check(err)
+}
+
 func (c *Chain) Read(id int) (*Block, error) {
 	// id should not overflow int
 	if id < 0 {
-		return nil, Error("i cannot be less than zero")
+		return nil, Error("Block id cannot be less than zero")
 	}
 	var begin, end int64
 	if id > 0 {
@@ -71,4 +71,10 @@ func (c *Chain) Read(id int) (*Block, error) {
 	b := new(Block)
 	UnmarshalJSON(data, b)
 	return b, nil
+}
+
+func (c *Chain) MustRead(id int) *Block {
+	b, err := c.Read(id)
+	Check(err)
+	return b
 }

@@ -28,65 +28,60 @@ type Graph struct {
 	size  int64
 }
 
-func NewGraph(id int, size int64, _type string) (g *Graph, err error) {
+func NewGraph(id int, size int64, _type string) *Graph {
 	switch _type {
 	case DOUBLE_BUTTERFLY,
 		LINEAR_SUPER_CONCENTRATOR,
 		STACKED_EXPANDERS:
 	default:
-		return nil, Error("Invalid graph type")
+		panic("Invalid graph type: " + _type)
 	}
+	var err error
+	g := new(Graph)
 	path := filepath.Join("Graph", _type, strconv.Itoa(id))
-	g = new(Graph)
 	g.batch = new(leveldb.Batch) //necessary?
 	g.db, err = leveldb.OpenFile(path, nil)
-	if err != nil {
-		return nil, err
-	}
+	Check(err)
 	g.size = size
-	return g, nil
+	return g
 }
 
 func (g *Graph) Size() int64 {
 	return g.size
 }
 
-func (g *Graph) SetType(impl GraphType) error {
+func (g *Graph) SetType(impl GraphType) bool {
 	if g.impl != nil {
-		return Error("Graph type already set")
+		return false
 	}
 	g.impl = impl
-	return nil
+	return true
 }
 
 // Get node
-func (g *Graph) Get(idx int64) (*Node, error) {
+func (g *Graph) Get(idx int64) *Node {
 	if idx < 0 {
-		return nil, Error("Idx cannot be less than 0")
+		panic("Idx cannot be less than 0")
 	} else if idx >= g.size {
-		return nil, Errorf("Expected idx < %d; got idx=%d\n", g.size, idx)
+		Panicf("Expected idx < %d; got idx=%d\n", g.size, idx)
 	}
 	key := Int64Bytes(idx)
 	data, err := g.db.Get(key, nil)
-	if err != nil {
-		return nil, err
-	}
+	Check(err)
 	nd := new(Node)
-	if err = nd.UnmarshalBinary(data); err != nil {
-		return nil, err
-	} else if nd.Idx != idx {
-		return nil, Error("Node has incorrect idx")
+	err = nd.UnmarshalBinary(data)
+	Check(err)
+	if nd.Idx != idx {
+		Panicf("Expected node with idx=%d; got idx=%d\n", idx, nd.Idx)
 	}
-	return nd, nil
+	return nd
 }
 
-func (g *Graph) put(nd *Node) error {
+func (g *Graph) put(nd *Node) {
 	data, _ := nd.MarshalBinary()
 	key := Int64Bytes(nd.Idx)
-	if err := g.db.Put(key, data, nil); err != nil {
-		return err
-	}
-	return nil
+	err := g.db.Put(key, data, nil)
+	Check(err)
 }
 
 func (g *Graph) putBatch(nd *Node) {
@@ -95,36 +90,28 @@ func (g *Graph) putBatch(nd *Node) {
 	g.batch.Put(key, data)
 }
 
-func (g *Graph) writeBatch() error {
-	if err := g.db.Write(g.batch, nil); err != nil {
-		// reset batch?
-		return err
-	}
+func (g *Graph) writeBatch() {
+	err := g.db.Write(g.batch, nil)
+	Check(err)
 	g.batch = new(leveldb.Batch)
-	return nil
 }
 
 // Initialize node values
 // value = hash(pubKey_bytes, idx, [parent1.Value, parent2.Value, ...])
 
-func (g *Graph) SetValues(pub crypto.PubKeyEd25519) error {
+func (g *Graph) SetValues(pub crypto.PubKeyEd25519) {
 	hash := NewHash()
 	pkbz := pub.Bytes()
 	var idx int64
 	for ; idx < g.size; idx++ {
-		nd, err := g.Get(idx)
-		if err != nil {
-			return err
-		}
+		nd := g.Get(idx)
 		bz := append(pkbz, Int64Bytes(idx)...)
 		if !nd.NoParents() {
 			sort.Sort(nd.Parents)
 			for _, p := range nd.Parents {
-				parent, err := g.Get(p)
-				if err != nil {
-					return err
-				} else if len(parent.Value) == 0 {
-					return Errorf("Cannot set value for idx=%d; parent idx=%d does not have value", nd.Idx, parent.Idx)
+				parent := g.Get(p)
+				if parent.Value == nil {
+					Panicf("Cannot set value for idx=%d; parent idx=%d does not have value", nd.Idx, parent.Idx)
 				}
 				bz = append(bz, parent.Value...)
 			}
@@ -132,25 +119,19 @@ func (g *Graph) SetValues(pub crypto.PubKeyEd25519) error {
 		hash.Reset()
 		hash.Write(bz)
 		nd.Value = hash.Sum(nil)
-		if err = g.put(nd); err != nil {
-			return err
-		}
+		g.put(nd)
 	}
-	return nil
 }
 
-func (g *Graph) GetParents(idx int64) (Int64s, error) {
-	nd, err := g.Get(idx)
-	if err != nil {
-		return nil, err
-	}
-	return nd.Parents, nil
+func (g *Graph) GetParents(idx int64) Int64s {
+	nd := g.Get(idx)
+	return nd.Parents
 }
 
 func (g *Graph) Print() {
 	var idx int64
 	for ; idx < g.size; idx++ {
-		nd, _ := g.Get(idx)
+		nd := g.Get(idx)
 		Println(nd)
 	}
 }

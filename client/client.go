@@ -3,6 +3,8 @@ package client
 import (
 	"github.com/tendermint/go-crypto"
 	"github.com/zballs/pos/chain"
+	"github.com/zballs/pos/crypto/tndr"
+	"github.com/zballs/pos/p2p"
 	proto "github.com/zballs/pos/protocol"
 	. "github.com/zballs/pos/util"
 	"time"
@@ -17,16 +19,21 @@ type Client struct {
 	blocks   chan *chain.Block
 	Chain    *chain.Chain
 	Delta    int
+	Node     *p2p.Node
 	Prover   *proto.Prover
 	seed     []byte
 	Txs      []*chain.Tx
 	Verifier *proto.Verifier
 }
 
-func NewClient(path string) *Client {
-	chain, err := chain.NewChain(path)
-	Check(err)
-	priv := crypto.GenPrivKeyEd25519()
+func Configure(priv crypto.PrivKeyEd25519) {
+	p2p.NewConfig("", "", "", "", "", priv, "", 0)
+}
+
+func NewClient(chainPath, password string) *Client {
+	chain := chain.NewChain(chainPath)
+	priv := tndr.GeneratePrivKey(password)
+	Configure(priv)
 	prover := proto.NewProver(priv)
 	verifier := proto.NewVerifier()
 	return &Client{
@@ -37,59 +44,49 @@ func NewClient(path string) *Client {
 	}
 }
 
-func (cli *Client) Init(id int) (err error) {
+func (cli *Client) Init(configPath string, id int) {
 	if cli.Prover == nil {
-		return Error("Prover is not set")
+		panic("Prover is not set")
 	}
 	// Set merkle tree
-	if err = cli.Prover.MerkleTree(id); err != nil {
-		return err
-	}
+	cli.Prover.MerkleTree(id)
 	// Construct graph -- defaults to stacked expander
 	// TODO: add modularity
-	if err = cli.Prover.GraphStackedExpanders(id); err != nil {
-		return err
-	}
+	cli.Prover.GraphStackedExpanders(id)
 	// Commit
 	// (1) Set graph values
 	// (2) Add leaves to merkle tree
 	// (3) Hash levels of merkle tree
 	// (4) Set commit to root hash
-	if err = cli.Prover.MakeCommit(); err != nil {
-		return err
-	}
+	cli.Prover.MakeCommit()
+	// Create TxCommit
 	commit := cli.Prover.Commit
 	pub := cli.Prover.PubKey()
 	txCommit := chain.NewTxCommit(commit, pub, 0) // what should txId be?
-	tx, err := chain.NewTx(txCommit)
-	Check(err)
+	tx := chain.NewTx(txCommit)
 	cli.Txs = append(cli.Txs, tx)
-	return nil
+	// Run node
+	cli.Node = p2p.RunNode(configPath)
 }
 
 func (cli *Client) MineCommit() *proto.CommitProof {
 	seed := cli.Seed()
-	challenges, err := cli.Verifier.CommitChallenges(seed)
-	Check(err)
-	commitProof, err := cli.Prover.ProveCommit(challenges)
-	Check(err)
+	challenges := cli.CommitChallenges(seed)
+	commitProof := cli.ProveCommit(challenges)
 	commitProof.Seed = cli.seed
 	return commitProof
 }
 
 func (cli *Client) MineSpace() *proto.SpaceProof {
 	seed := cli.Seed()
-	challenges, err := cli.Verifier.SpaceChallenges(seed)
-	Check(err)
-	Println(challenges)
-	spaceProof, err := cli.Prover.ProveSpace(challenges)
-	Check(err)
+	challenges := cli.SpaceChallenges(seed)
+	spaceProof := cli.ProveSpace(challenges)
 	spaceProof.Seed = cli.seed
 	return spaceProof
 }
 
 func (cli *Client) CommitQuality(commitProof *proto.CommitProof) float64 {
-	if err := cli.Verifier.VerifyCommit(commitProof); err != nil {
+	if err := cli.VerifyCommit(commitProof); err != nil {
 		return 0
 	}
 	hash := NewHash()
@@ -106,7 +103,7 @@ func (cli *Client) CommitQuality(commitProof *proto.CommitProof) float64 {
 }
 
 func (cli *Client) SpaceQuality(spaceProof *proto.SpaceProof) float64 {
-	if err := cli.Verifier.VerifySpace(spaceProof); err != nil {
+	if err := cli.VerifySpace(spaceProof); err != nil {
 		return 0
 	}
 	hash := NewHash()
@@ -122,6 +119,22 @@ func (cli *Client) SpaceQuality(spaceProof *proto.SpaceProof) float64 {
 	return quality
 }
 
+// Prover
+
+func (cli *Client) ProveCommit(challenges Int64s) *proto.CommitProof {
+	return cli.Prover.ProveCommit(challenges)
+}
+
+func (cli *Client) ProveSpace(challenges Int64s) *proto.SpaceProof {
+	return cli.Prover.ProveSpace(challenges)
+}
+
+func (cli *Client) PrivKey() crypto.PrivKeyEd25519 {
+	return cli.Prover.Priv
+}
+
+// Verifier
+
 func (cli *Client) CommitChallenges(seed []byte) Int64s {
 	challenges, err := cli.Verifier.CommitChallenges(seed)
 	Check(err)
@@ -134,6 +147,16 @@ func (cli *Client) SpaceChallenges(seed []byte) Int64s {
 	return challenges
 }
 
+func (cli *Client) VerifyCommit(commitProof *proto.CommitProof) error {
+	return cli.Verifier.VerifyCommit(commitProof)
+}
+
+func (cli *Client) VerifySpace(spaceProof *proto.SpaceProof) error {
+	return cli.Verifier.VerifySpace(spaceProof)
+}
+
+//..
+
 func (cli *Client) Seed() []byte {
 	id := cli.Chain.Last()
 	var data []byte //nil
@@ -141,8 +164,7 @@ func (cli *Client) Seed() []byte {
 		if id >= cli.Delta {
 			id -= cli.Delta // -1??
 		}
-		b, err := cli.Chain.Read(id)
-		Check(err)
+		b := cli.Chain.MustRead(id)
 		data = b.Serialize()
 	}
 	cli.seed = Sum64(data)
@@ -159,8 +181,8 @@ func (cli *Client) Round() {
 			_spaceProof := b.SubHash.SpaceProof
 			_quality := cli.SpaceQuality(_spaceProof)
 			if _quality > quality {
-				// .. should we send block to peers?
-				// .. should we write block to chain?
+				// .. send block to peers?
+				// .. write block to chain?
 				return
 			}
 		case <-time.After(TIMEOUT):
@@ -169,16 +191,14 @@ func (cli *Client) Round() {
 	}
 	// Read last block
 	last := cli.Chain.Last()
-	lastb, err := cli.Chain.Read(last)
-	Check(err)
+	lastb := cli.Chain.MustRead(last)
 	// Get privkey
-	priv := cli.Prover.Priv
+	priv := cli.PrivKey()
 	// Generate commit proof (if we're creating new block?)
 	commitProof := cli.MineCommit()
 	// Create new block
 	newb := chain.NewBlock(commitProof, lastb, priv, spaceProof, cli.Txs)
 	//----- For testing -----//
-	err = cli.Chain.Write(newb)
-	Check(err)
+	cli.Chain.MustWrite(newb)
 	// TODO: send new_block to peers in network
 }

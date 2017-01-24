@@ -26,15 +26,14 @@ func (t *Tree) String() string {
 	return Sprintf("TREE(num_leaves=%d,num_nodes=%d,value=%x)", t.numLeaves, t.numNodes, t.value)
 }
 
-func NewTree(treeId int) (t *Tree, err error) {
-	t = new(Tree)
+func NewTree(treeId int) *Tree {
+	var err error
+	t := new(Tree)
 	t.batch = new(leveldb.Batch)
 	treePath := filepath.Join("tree", strconv.Itoa(treeId))
 	t.db, err = leveldb.OpenFile(treePath, nil)
-	if err != nil {
-		return nil, err
-	}
-	return t, nil
+	Check(err)
+	return t
 }
 
 func (t *Tree) Init(numLeaves int64) {
@@ -43,21 +42,18 @@ func (t *Tree) Init(numLeaves int64) {
 	t.nodeCount = t.numNodes>>1 + 1
 }
 
-func (t *Tree) Root() ([]byte, error) {
+func (t *Tree) Root() []byte {
 	key := Int64Bytes(1)
 	value, err := t.db.Get(key, nil)
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	Check(err)
+	return value
 }
 
 // 1) Add leaves, set hashes of top-level nodes
 // We are assuming the values are topologically sorted
-func (t *Tree) AddLeaf(value []byte) error {
+func (t *Tree) AddLeaf(value []byte) bool {
 	if t.leafCount == t.numLeaves {
-		// shouldn't happen..
-		return Error("Cannot add leaf; maximum capacity reached")
+		return false
 	}
 	if t.leafCount&1 == 0 {
 		t.value = value
@@ -70,18 +66,17 @@ func (t *Tree) AddLeaf(value []byte) error {
 		t.value = nil
 		t.nodeCount++
 		if t.leafCount%BATCH_SIZE == 0 || t.leafCount+1 == t.numLeaves {
-			if err := t.db.Write(t.batch, nil); err != nil {
-				return err
-			}
+			err := t.db.Write(t.batch, nil)
+			Check(err)
 			t.batch = new(leveldb.Batch)
 		}
 	}
 	t.leafCount++
-	return nil
+	return true
 }
 
 // 2) Hash lower-level nodes
-func (t *Tree) HashLevels() error {
+func (t *Tree) HashLevels() {
 	if t.leafCount != t.numLeaves {
 		// tree does not have all its leaves
 		// return err?
@@ -110,25 +105,19 @@ func (t *Tree) HashLevels() error {
 			times2 := t.nodeCount << 1
 			keyLeft := Int64Bytes(times2)
 			valueLeft, err := t.db.Get(keyLeft, nil)
-			if err != nil {
-				return err
-			}
+			Check(err)
 			keyRight := Int64Bytes(times2 + 1)
 			valueRight, err := t.db.Get(keyRight, nil)
-			if err != nil {
-				return err
-			}
+			Check(err)
 			t.value = append(valueLeft, valueRight...)
 			hash.Reset()
 			hash.Write(t.value)
 			key, value = Int64Bytes(t.nodeCount), hash.Sum(nil)
 			t.nodeCount--
 		}
-		if err := t.db.Put(key, value, nil); err != nil {
-			return err
-		}
+		err := t.db.Put(key, value, nil)
+		Check(err)
 	}
-	return nil
 }
 
 type Proof struct {
@@ -144,12 +133,12 @@ func (mp *Proof) String() string {
 }
 
 // Get sibling and value from graph
-func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
+func (t *Tree) ComputeProof(idx int64, sibling, value []byte) *Proof {
 	if idx < 0 {
-		return nil, Error("Idxs cannot be less than 0")
+		panic("Idxs cannot be less than 0")
 	}
 	if idx >= t.numLeaves {
-		return nil, Errorf("Expected idx < %d; got idx=%d\n", t.numLeaves, idx)
+		Panicf("Expected idx < %d; got idx=%d\n", t.numLeaves, idx)
 	}
 	p := new(Proof)
 	p.Branch = append(p.Branch, sibling)
@@ -159,13 +148,11 @@ func (t *Tree) ComputeProof(idx int64, sibling, value []byte) (*Proof, error) {
 	p.Value = value
 	for {
 		if pos >>= 1; pos == 1 {
-			return p, nil
+			return p
 		}
 		key := Int64Bytes(pos ^ 1)
 		val, err := t.db.Get(key, nil)
-		if err != nil {
-			return nil, err
-		}
+		Check(err)
 		p.Branch = append(p.Branch, val)
 	}
 }

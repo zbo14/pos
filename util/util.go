@@ -339,9 +339,18 @@ func MustReadFull(r io.Reader, buf []byte) {
 
 // os
 
+func CreateFile(filePath string) (*os.File, error) {
+	return os.Create(filePath)
+}
+
+func MustCreateFile(filePath string) *os.File {
+	file, err := CreateFile(filePath)
+	Check(err)
+	return file
+}
+
 func OpenFile(filePath string) (*os.File, error) {
 	return os.Open(filePath)
-
 }
 
 func MustOpenFile(filePath string) *os.File {

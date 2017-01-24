@@ -121,7 +121,7 @@ type Tx struct {
 	*TxPunishment
 }
 
-func NewTx(isTx IsTx) (*Tx, error) {
+func NewTx(isTx IsTx) *Tx {
 	tx := new(Tx)
 	switch isTx.(type) {
 	case *TxCommit:
@@ -132,9 +132,9 @@ func NewTx(isTx IsTx) (*Tx, error) {
 		tx.TxPunishment = isTx.(*TxPunishment)
 	default:
 		// shouldn't get here
-		return nil, Errorf("Unexpected tx type: %T\n", isTx)
+		Panicf("Unexpected tx type: %T\n", isTx)
 	}
-	return tx, nil
+	return tx
 }
 
 type IsTx interface {

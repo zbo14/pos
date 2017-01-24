@@ -16,6 +16,14 @@ const (
 	SEED_SIZE  = 64
 )
 
+var (
+	ErrIncorrectIdx       = Error("Proof has incorrect idx")
+	ErrIncorrectNumProofs = Error("Incorrect number of proofs")
+	ErrIncorrectSize      = Error("Incorrect size")
+	ErrIncorrectValue     = Error("Proof has incorrect value")
+	ErrNotVerified        = Error("Proof verification failed")
+)
+
 type Verifier struct {
 	alpha, beta int
 	challenges  Int64s
@@ -41,8 +49,8 @@ func (v *Verifier) GraphSize() int64 {
 // (1)
 
 func (v *Verifier) ReceiveCommit(commit []byte, pub crypto.PubKeyEd25519) error {
-	if len(commit) != HASH_SIZE {
-		return Error("Incorrect commit length")
+	if size := len(commit); size != HASH_SIZE {
+		return ErrIncorrectSize
 	}
 	v.commit = commit
 	v.pub = pub
@@ -51,43 +59,40 @@ func (v *Verifier) ReceiveCommit(commit []byte, pub crypto.PubKeyEd25519) error 
 
 func (v *Verifier) CommitChallenges(seed []byte) (Int64s, error) {
 	if size := len(seed); size != SEED_SIZE {
-		return nil, Errorf("Expected seed with size=%d; got size=%d\n", SEED_SIZE, size)
+		return nil, ErrIncorrectSize
 	}
-	return v.SampleChallenges(seed, v.alpha)
+	return v.SampleChallenges(seed, v.alpha), nil
 }
 
 func (v *Verifier) SpaceChallenges(seed []byte) (Int64s, error) {
 	if size := len(seed); size != SEED_SIZE {
-		return nil, Errorf("Expected seed with size=%d; got size=%d\n", SEED_SIZE, size)
+		return nil, ErrIncorrectSize
 	}
-	return v.SampleChallenges(seed, v.beta)
+	return v.SampleChallenges(seed, v.beta), nil
 }
 
-func (v *Verifier) SampleChallenges(seed []byte, param int) (Int64s, error) {
+func (v *Verifier) SampleChallenges(seed []byte, param int) Int64s {
 	challenges := make(Int64s, param)
 	rands := make([]byte, param*8)
 	Shake32(rands, seed)
 	for i, _ := range challenges {
-		rand, read := binary.Varint(rands[i*8 : (i+1)*8])
-		if read < 0 {
-			return nil, Error("Could not read rand")
-		}
+		rand, _ := binary.Varint(rands[i*8 : (i+1)*8])
 		if rand < 0 {
 			rand *= -1
 		}
 		challenges[i] = rand % v.graphSize
 	}
 	v.challenges = challenges
-	return challenges, nil
+	return challenges
 }
 
 // (2)
 
 func (v *Verifier) VerifyCommit(commitProof *CommitProof) error {
 	if len(commitProof.Proofs) != v.alpha {
-		return Error("Incorrect number of proofs")
+		return ErrIncorrectNumProofs
 	} else if len(commitProof.ParentProofs) != v.alpha {
-		return Error("Incorrect number of parent proofs")
+		return ErrIncorrectNumProofs
 	}
 	hash := NewHash()
 	pkbz := v.pub.Bytes()
@@ -95,15 +100,15 @@ func (v *Verifier) VerifyCommit(commitProof *CommitProof) error {
 		value := append(pkbz, Int64Bytes(c)...)
 		proof := commitProof.Proofs[i]
 		if proof.Idx != c {
-			return Error("Proof has incorrect idx")
+			return ErrIncorrectIdx
 		} else if !merkle.VerifyProof(proof, v.commit) {
-			return Error("Proof verification failed")
+			return ErrNotVerified
 		}
 		for _, p := range commitProof.ParentProofs[i] {
 			if p.Idx >= c {
-				return Error("Parent proof has invalid idx")
+				return ErrIncorrectIdx
 			} else if !merkle.VerifyProof(p, v.commit) {
-				return Error("Parent proof verification failed")
+				return ErrNotVerified
 			}
 			value = append(value, p.Value...)
 		}
@@ -111,7 +116,7 @@ func (v *Verifier) VerifyCommit(commitProof *CommitProof) error {
 		hash.Write(value)
 		value = hash.Sum(nil)
 		if !bytes.Equal(proof.Value, value) {
-			return Error("Proof has incorrect value")
+			return ErrIncorrectValue
 		}
 	}
 	return nil
@@ -121,14 +126,14 @@ func (v *Verifier) VerifyCommit(commitProof *CommitProof) error {
 
 func (v *Verifier) VerifySpace(spaceProof *SpaceProof) error {
 	if len(spaceProof.Proofs) != v.beta {
-		return Error("Incorrect number of proofs")
+		return ErrIncorrectNumProofs
 	}
 	for i, c := range v.challenges {
 		proof := spaceProof.Proofs[i]
 		if proof.Idx != c {
-			return Error("Proof has incorrect idx")
+			return ErrIncorrectIdx
 		} else if !merkle.VerifyProof(proof, v.commit) {
-			return Error("Proof verification failed")
+			return ErrNotVerified
 		}
 	}
 	return nil

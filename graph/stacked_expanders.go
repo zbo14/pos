@@ -1,9 +1,6 @@
 package graph
 
-import (
-	"github.com/pkg/errors"
-	. "github.com/zballs/pos/util"
-)
+import . "github.com/zballs/pos/util"
 
 type StackedExpanders struct {
 	*Graph
@@ -11,19 +8,16 @@ type StackedExpanders struct {
 
 func (_ *StackedExpanders) IsGraphType() string { return STACKED_EXPANDERS }
 
-func DefaultStackedExpanders(id int) (*Graph, error) {
+func DefaultStackedExpanders(id int) *Graph {
 	return ConstructStackedExpanders(id, 2048, 31, 5, false) //size = 65536
 }
 
 // Adapted from "Proof of Space from Stacked Expanders", 2016 (Ren, Devadas)
 
-func ConstructStackedExpanders(id int, n, k, d int64, localize bool) (graph *Graph, err error) {
+func ConstructStackedExpanders(id int, n, k, d int64, localize bool) *Graph {
 	size := n * (k + 1)
 	stacked := new(StackedExpanders)
-	stacked.Graph, err = NewGraph(id, size, STACKED_EXPANDERS)
-	if err != nil {
-		return nil, err
-	}
+	stacked.Graph = NewGraph(id, size, STACKED_EXPANDERS)
 	var nd *Node
 	var idx, m int64
 	// Create nodes
@@ -31,28 +25,22 @@ func ConstructStackedExpanders(id int, n, k, d int64, localize bool) (graph *Gra
 		nd = NewNode(idx)
 		stacked.putBatch(nd)
 		if idx++; idx%BATCH_SIZE == 0 || idx == stacked.size {
-			if err = stacked.writeBatch(); err != nil {
-				return nil, err
-			}
+			stacked.writeBatch()
 		}
 	}
 	// Stack bipartite expanders
 	for ; m <= stacked.size-2*n; m += n {
 		if localize {
-			if err = stacked.PinskerExpander(m, n, d, true); err != nil {
-				return nil, err
-			}
+			stacked.PinskerExpander(m, n, d, true)
 		} else {
-			if err = stacked.ChungExpander(m, n, d); err != nil {
-				return nil, err
-			}
+			stacked.ChungExpander(m, n, d)
 		}
 	}
-	graph = stacked.Graph
-	if err = graph.SetType(stacked); err != nil {
-		return nil, err
+	graph := stacked.Graph
+	if !graph.SetType(stacked) {
+		panic("Graph type already set")
 	}
-	return graph, nil
+	return graph
 }
 
 // This implements Pinsker's randomized construction of a bipartite expander.
@@ -62,14 +50,11 @@ func ConstructStackedExpanders(id int, n, k, d int64, localize bool) (graph *Gra
 // from sink k to sink j where (i mod n) == (k mod n). After the randomized
 // construction, any edge from source i to sink j where (i mod n) == (j mod n)
 // that does not already exist is added to the graph..
-func (stacked *StackedExpanders) PinskerExpander(m, n, d int64, localize bool) error {
+func (stacked *StackedExpanders) PinskerExpander(m, n, d int64, localize bool) {
 	var count, sink, src int64
 	for sink = m + n; sink < m+2*n; sink++ {
 		count = 0
-		nd, err := stacked.Get(sink)
-		if err != nil {
-			return err
-		}
+		nd := stacked.Get(sink)
 		for count < d {
 			src = Rand(n) + m
 			if localize {
@@ -92,12 +77,9 @@ func (stacked *StackedExpanders) PinskerExpander(m, n, d int64, localize bool) e
 			}
 		}
 		if sink%BATCH_SIZE == 0 || sink+1 == m+2*n {
-			if err := stacked.writeBatch(); err != nil {
-				return err
-			}
+			stacked.writeBatch()
 		}
 	}
-	return nil
 }
 
 // This implements Chung's randomized construction of a bipartite expander
@@ -108,79 +90,63 @@ func (stacked *StackedExpanders) PinskerExpander(m, n, d int64, localize bool) e
 // find an available sink. Once we have the random permutation, we add d-1
 // more incoming edges to each sink. These edges come from the d-1 sources
 // immediately after the matching source (we loop around if we reach m+2*n)
-// TODO: add localization transformation..
-func (stacked *StackedExpanders) ChungExpander(m, n, d int64) error {
+// TODO: add localization transformation
+// TODO: more explicit panic messages
+func (stacked *StackedExpanders) ChungExpander(m, n, d int64) {
 	var iter, sink, src int64
 	// Random permutation // 1-1 matching of sources and sinks
 	for src = m; src < m+n; src++ {
 		sink = Rand(n) + m + n
-		nd, err := stacked.Get(sink)
-		if err != nil {
-			return err
-		}
+		nd := stacked.Get(sink)
 		if nd.NoParents() {
 			if !nd.AddParent(src) {
-				return Error("Failed to add parent")
+				panic("Failed to add parent")
 			}
 		} else {
 			for iter = 1; ; iter++ {
 				if sink+iter >= m+2*n {
 					if sink-iter < m+n {
-						return Error("Could not pair source with sink")
+						panic("Could not pair source with sink")
 					}
 				}
 				if sink+iter < m+2*n {
-					nd, err = stacked.Get(sink + iter)
-					if err != nil {
-						return err
-					}
+					nd = stacked.Get(sink + iter)
 					if nd.NoParents() {
 						if !nd.AddParent(src) {
-							return Error("Failed to add parent")
+							panic("Failed to add parent")
 						}
 						break
 					}
 				}
 				if sink-iter >= m+n {
-					nd, err = stacked.Get(sink - iter)
-					if err != nil {
-						return err
-					}
+					nd = stacked.Get(sink - iter)
 					if nd.NoParents() {
 						if !nd.AddParent(src) {
-							return Error("Failed to add parent")
+							panic("Failed to add parent")
 						}
 						break
 					}
 				}
 			}
 		}
-		if err := stacked.put(nd); err != nil {
-			return err
-		}
+		stacked.put(nd)
 	}
 	for sink = m + n; sink < m+2*n; sink++ {
-		nd, err := stacked.Get(sink)
-		if err != nil {
-			return err
-		}
+		nd := stacked.Get(sink)
 		if numParents := nd.Parents.Len(); numParents != 1 {
-			return errors.Errorf("Expected 1 parent; got %d parents", numParents)
+			Panicf("Expected 1 parent; got %d parents", numParents)
 		}
 		for iter, src = 1, nd.Parents[0]; iter < d; iter++ {
 			if src+iter == m+n {
 				src = m - iter
 			}
 			if !nd.AddParent(src + iter) {
-				return Error("Failed to add parent")
+				panic("Failed to add parent")
 			}
 		}
 		stacked.putBatch(nd)
 		if sink%BATCH_SIZE == 0 || sink+1 == m+2*n {
-			if err := stacked.writeBatch(); err != nil {
-				return err
-			}
+			stacked.writeBatch()
 		}
 	}
-	return nil
 }
