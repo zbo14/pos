@@ -1,33 +1,26 @@
 package protocol
 
 import (
-	"github.com/zballs/pos/crypto"
+	"github.com/tendermint/go-crypto"
+	"github.com/zballs/pos/crypto/tndr"
 	"github.com/zballs/pos/graph"
 	"github.com/zballs/pos/merkle"
 	. "github.com/zballs/pos/util"
 )
 
-/*
-type Commitment struct {
-	Commit    []byte            `json:"commit"`
-	PubKey    *crypto.PublicKey `json:"public_key"`
-	Signature *crypto.Signature `json:"signature"`
-}
-*/
-
 type CommitProof struct {
-	ParentProofs [][]*merkle.Proof `json:"parent_proofs"`
-	Proofs       []*merkle.Proof   `json:"proofs"`
-	PubKey       *crypto.PublicKey `json:"public_key"`
-	Seed         []byte            `json:"seed"`
-	Size         int64             `json:"size"`
+	ParentProofs [][]*merkle.Proof    `json:"parent_proofs"`
+	Proofs       []*merkle.Proof      `json:"proofs"`
+	PubKey       crypto.PubKeyEd25519 `json:"public_key"`
+	Seed         []byte               `json:"seed"`
+	Size         int64                `json:"size"`
 }
 
 type SpaceProof struct {
-	Proofs []*merkle.Proof   `json:"proofs"`
-	PubKey *crypto.PublicKey `json:"public_key"`
-	Seed   []byte            `json:"seed"`
-	Size   int64             `json:"size"`
+	Proofs []*merkle.Proof      `json:"proofs"`
+	PubKey crypto.PubKeyEd25519 `json:"public_key"`
+	Seed   []byte               `json:"seed"`
+	Size   int64                `json:"size"`
 }
 
 // Do we need `space` (i.e. *os.File) if we're
@@ -37,18 +30,18 @@ type SpaceProof struct {
 type Prover struct {
 	Commit []byte //merkle root hash
 	graph  *graph.Graph
-	Priv   *crypto.PrivateKey
+	Priv   crypto.PrivKeyEd25519
 	tree   *merkle.Tree
 }
 
-func NewProver(priv *crypto.PrivateKey) *Prover {
+func NewProver(priv crypto.PrivKeyEd25519) *Prover {
 	return &Prover{
 		Priv: priv,
 	}
 }
 
-func (p *Prover) Pub() *crypto.PublicKey {
-	return p.Priv.Public()
+func (p *Prover) PubKey() crypto.PubKeyEd25519 {
+	return tndr.PubKey(p.Priv)
 }
 
 func (p *Prover) MerkleTree(id int) error {
@@ -91,7 +84,7 @@ func (p *Prover) GraphStackedExpanders(id int) error {
 }
 
 func (p *Prover) MakeCommit() error {
-	pub := p.Priv.Public()
+	pub := p.PubKey()
 	if err := p.graph.SetValues(pub); err != nil {
 		return err
 	}
@@ -120,27 +113,14 @@ func (p *Prover) MakeCommit() error {
 	return nil
 }
 
-/*
-func (p *Prover) MakeCommitment() (*Commitment, error) {
-	if len(p.Commit) == 0 {
-		return nil, Error("Commit is not set")
-	}
-	pub := p.Priv.Public()
-	sig := p.Priv.Sign(p.Commit)
-	return &Commitment{
-		Commit:    p.Commit,
-		PubKey:    pub,
-		Signature: sig,
-	}, nil
-}
-*/
-
 func (p *Prover) NewCommitProof(parentProofs [][]*merkle.Proof, proofs []*merkle.Proof) *CommitProof {
+	pub := p.PubKey()
+	size := p.graph.Size()
 	return &CommitProof{
 		ParentProofs: parentProofs,
 		Proofs:       proofs,
-		PubKey:       p.Priv.Public(),
-		Size:         p.graph.Size(),
+		PubKey:       pub,
+		Size:         size,
 	}
 }
 
@@ -194,10 +174,12 @@ func (p *Prover) ProveCommit(challenges []int64) (*CommitProof, error) {
 }
 
 func (p *Prover) NewSpaceProof(proofs []*merkle.Proof) *SpaceProof {
+	pub := p.PubKey()
+	size := p.graph.Size()
 	return &SpaceProof{
 		Proofs: proofs,
-		PubKey: p.Priv.Public(),
-		Size:   p.graph.Size(),
+		PubKey: pub,
+		Size:   size,
 	}
 }
 

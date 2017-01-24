@@ -266,6 +266,7 @@ func NewPartSetReader(parts []*Part) *PartSetReader {
 	}
 }
 
+// Iterative read
 func (r *PartSetReader) Read(p []byte) (int, error) {
 	var err error
 	var n, read int

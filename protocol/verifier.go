@@ -3,7 +3,8 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/zballs/pos/crypto"
+	// "github.com/zballs/pos/crypto/tndr"
+	"github.com/tendermint/go-crypto"
 	"github.com/zballs/pos/merkle"
 	. "github.com/zballs/pos/util"
 )
@@ -19,7 +20,7 @@ type Verifier struct {
 	alpha, beta int
 	challenges  Int64s
 	commit      []byte
-	pub         *crypto.PublicKey
+	pub         crypto.PubKeyEd25519
 	graphSize   int64
 }
 
@@ -39,11 +40,9 @@ func (v *Verifier) GraphSize() int64 {
 
 // (1)
 
-func (v *Verifier) ReceiveCommit(commit []byte, pub *crypto.PublicKey) error {
+func (v *Verifier) ReceiveCommit(commit []byte, pub crypto.PubKeyEd25519) error {
 	if len(commit) != HASH_SIZE {
 		return Error("Incorrect commit length")
-	} else if pub == nil {
-		return Error("No public key")
 	}
 	v.commit = commit
 	v.pub = pub

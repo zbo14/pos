@@ -1,6 +1,5 @@
-package crypto
+package ecdsa
 
-/*
 import (
 	"bytes"
 	"crypto/ecdsa"
@@ -216,4 +215,3 @@ func (sig *Signature) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
-*/

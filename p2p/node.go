@@ -2,14 +2,14 @@ package p2p
 
 import (
 	cfg "github.com/tendermint/go-config"
+	"github.com/tendermint/go-crypto"
 	gop2p "github.com/tendermint/go-p2p"
 	"github.com/tendermint/go-wire"
-	// "github.com/zballs/pos/crypto"
-	"github.com/tendermint/go-crypto"
+	"github.com/zballs/pos/crypto/tndr"
 	. "github.com/zballs/pos/util"
 )
 
-// From github.com/jaekwon/twirl/node/data_reactor
+// From github.com/jaekwon/twirl/node/node
 
 const (
 	DEFAULT_PROTO = "tcp"
@@ -27,7 +27,8 @@ type Node struct {
 }
 
 func NewNode(config cfg.Config) *Node {
-	priv := crypto.GenPrivKeyEd25519()
+	password := config.GetString("password")
+	priv := tndr.GeneratePrivKey(password)
 	// should addrbook path be in config
 	// or should we pass it as arg?
 	bookPath := config.GetString("addrbook_path")
@@ -118,7 +119,7 @@ func RunNode(config cfg.Config) *Node {
 	}
 	if seedString := config.GetString("seeds"); seedString != "" {
 		seeds := Split(seedString, ",")
-		if lmt := config.GetInt("seeds-limit"); lmt != 0 && len(seeds) > lmt {
+		if lmt := config.GetInt("seeds_limit"); lmt != 0 && len(seeds) > lmt {
 			perm := RandPerm(len(seeds))
 			_seeds := make([]string, lmt)
 			for i, j := range perm[:lmt] {

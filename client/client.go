@@ -1,16 +1,17 @@
 package client
 
 import (
-	"fmt"
+	"github.com/tendermint/go-crypto"
 	"github.com/zballs/pos/chain"
-	"github.com/zballs/pos/crypto"
 	proto "github.com/zballs/pos/protocol"
 	. "github.com/zballs/pos/util"
 	"time"
 )
 
-const DELTA = 50
-const TIMEOUT = 10 //seconds
+const (
+	DELTA   = 50
+	TIMEOUT = 10 * time.Second
+)
 
 type Client struct {
 	blocks   chan *chain.Block
@@ -25,7 +26,7 @@ type Client struct {
 func NewClient(path string) *Client {
 	chain, err := chain.NewChain(path)
 	Check(err)
-	priv, _ := crypto.GenerateKeypair()
+	priv := crypto.GenPrivKeyEd25519()
 	prover := proto.NewProver(priv)
 	verifier := proto.NewVerifier()
 	return &Client{
@@ -58,7 +59,7 @@ func (cli *Client) Init(id int) (err error) {
 		return err
 	}
 	commit := cli.Prover.Commit
-	pub := cli.Prover.Pub()
+	pub := cli.Prover.PubKey()
 	txCommit := chain.NewTxCommit(commit, pub, 0) // what should txId be?
 	tx, err := chain.NewTx(txCommit)
 	Check(err)
@@ -80,7 +81,7 @@ func (cli *Client) MineSpace() *proto.SpaceProof {
 	seed := cli.Seed()
 	challenges, err := cli.Verifier.SpaceChallenges(seed)
 	Check(err)
-	fmt.Println(challenges)
+	Println(challenges)
 	spaceProof, err := cli.Prover.ProveSpace(challenges)
 	Check(err)
 	spaceProof.Seed = cli.seed
@@ -162,7 +163,7 @@ func (cli *Client) Round() {
 				// .. should we write block to chain?
 				return
 			}
-		case <-time.After(time.Second * TIMEOUT):
+		case <-time.After(TIMEOUT):
 			break
 		}
 	}

@@ -3,7 +3,8 @@ package graph
 import (
 	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/zballs/pos/crypto"
+	// "github.com/zballs/pos/crypto"
+	"github.com/tendermint/go-crypto"
 	. "github.com/zballs/pos/util"
 	"path/filepath"
 	"sort"
@@ -107,7 +108,7 @@ func (g *Graph) writeBatch() error {
 // Initialize node values
 // value = hash(pubKey_bytes, idx, [parent1.Value, parent2.Value, ...])
 
-func (g *Graph) SetValues(pub *crypto.PublicKey) error {
+func (g *Graph) SetValues(pub crypto.PubKeyEd25519) error {
 	hash := NewHash()
 	pkbz := pub.Bytes()
 	var idx int64

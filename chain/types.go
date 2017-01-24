@@ -1,7 +1,8 @@
 package chain
 
 import (
-	"github.com/zballs/pos/crypto"
+	"github.com/tendermint/go-crypto"
+	"github.com/zballs/pos/crypto/tndr"
 	proto "github.com/zballs/pos/protocol"
 	. "github.com/zballs/pos/util"
 )
@@ -21,7 +22,7 @@ func (b *Block) Serialize() []byte {
 	return MarshalJSON(b)
 }
 
-func NewBlock(commitProof *proto.CommitProof, prevBlock *Block, priv *crypto.PrivateKey, spaceProof *proto.SpaceProof, txs []*Tx) *Block {
+func NewBlock(commitProof *proto.CommitProof, prevBlock *Block, priv crypto.PrivKeyEd25519, spaceProof *proto.SpaceProof, txs []*Tx) *Block {
 	blockId := prevBlock.BlockId + 1
 	subHash := NewSubHash(blockId, commitProof, prevBlock.SubHash, priv, spaceProof)
 	subTx := NewSubTx(blockId, txs)
@@ -34,7 +35,7 @@ func NewBlock(commitProof *proto.CommitProof, prevBlock *Block, priv *crypto.Pri
 	}
 }
 
-func GenesisBlock(commitProof *proto.CommitProof, priv *crypto.PrivateKey, spaceProof *proto.SpaceProof, txs []*Tx) *Block {
+func GenesisBlock(commitProof *proto.CommitProof, priv crypto.PrivKeyEd25519, spaceProof *proto.SpaceProof, txs []*Tx) *Block {
 	blockId := int64(0)
 	subHash := NewSubHash(blockId, commitProof, nil, priv, spaceProof) //pass nil ptr to prevSubHash
 	subTx := NewSubTx(blockId, txs)
@@ -48,10 +49,10 @@ func GenesisBlock(commitProof *proto.CommitProof, priv *crypto.PrivateKey, space
 }
 
 type SubHash struct {
-	BlockId     int64              `json:"block_id"`
-	CommitProof *proto.CommitProof `json:"commit_proof"`
-	SpaceProof  *proto.SpaceProof  `json:"space_proof"`
-	Signature   *crypto.Signature  `json:"signature"`
+	BlockId     int64                   `json:"block_id"`
+	CommitProof *proto.CommitProof      `json:"commit_proof"`
+	SpaceProof  *proto.SpaceProof       `json:"space_proof"`
+	Signature   crypto.SignatureEd25519 `json:"signature"`
 }
 
 func (subHash *SubHash) Serialize() []byte {
@@ -61,21 +62,21 @@ func (subHash *SubHash) Serialize() []byte {
 	return MarshalJSON(subHash)
 }
 
-func NewSubHash(blockId int64, commitProof *proto.CommitProof, prevSubHash *SubHash, priv *crypto.PrivateKey, spaceProofProof *proto.SpaceProof) *SubHash {
+func NewSubHash(blockId int64, commitProof *proto.CommitProof, prevSubHash *SubHash, priv crypto.PrivKeyEd25519, spaceProof *proto.SpaceProof) *SubHash {
 	data := prevSubHash.Serialize()
-	signature := priv.Sign(data)
+	signature := tndr.Sign(priv, data)
 	return &SubHash{
 		BlockId:     blockId,
 		CommitProof: commitProof,
-		SpaceProof:  spaceProofProof,
+		SpaceProof:  spaceProof,
 		Signature:   signature,
 	}
 }
 
 type SubSignature struct {
-	BlockId      int64             `json:"block_id"`
-	SignatureSig *crypto.Signature `json:"signature_sig"`
-	SignatureTx  *crypto.Signature `json:"signature_tx"`
+	BlockId      int64                   `json:"block_id"`
+	SignatureSig crypto.SignatureEd25519 `json:"signature_sig"`
+	SignatureTx  crypto.SignatureEd25519 `json:"signature_tx"`
 }
 
 func (subSig *SubSignature) Serialize() []byte {
@@ -85,11 +86,11 @@ func (subSig *SubSignature) Serialize() []byte {
 	return MarshalJSON(subSig)
 }
 
-func NewSubSignature(blockId int64, prevSubSig *SubSignature, priv *crypto.PrivateKey, subTx *SubTx) *SubSignature {
+func NewSubSignature(blockId int64, prevSubSig *SubSignature, priv crypto.PrivKeyEd25519, subTx *SubTx) *SubSignature {
 	data := prevSubSig.Serialize()
-	signatureSig := priv.Sign(data)
+	signatureSig := tndr.Sign(priv, data)
 	data = subTx.Serialize()
-	signatureTx := priv.Sign(data)
+	signatureTx := tndr.Sign(priv, data)
 	return &SubSignature{
 		BlockId:      blockId,
 		SignatureSig: signatureSig,
@@ -141,12 +142,12 @@ type IsTx interface {
 }
 
 type TxCommit struct {
-	Commit []byte            `json:"commit"`
-	PubKey *crypto.PublicKey `json:"public_key"`
-	TxId   int64             `json:"tx_id"`
+	Commit []byte               `json:"commit"`
+	PubKey crypto.PubKeyEd25519 `json:"public_key"`
+	TxId   int64                `json:"tx_id"`
 }
 
-func NewTxCommit(commit []byte, pub *crypto.PublicKey, txId int64) *TxCommit {
+func NewTxCommit(commit []byte, pub crypto.PubKeyEd25519, txId int64) *TxCommit {
 	return &TxCommit{
 		Commit: commit,
 		PubKey: pub,
@@ -169,12 +170,12 @@ func NewTxPayment(ins []*In, outs []*Out, txId int64) *TxPayment {
 }
 
 type TxPunishment struct {
-	PubKey     *crypto.PublicKey `json:"public_key"`
-	Punishment *Punishment       `json:"punishment"`
-	TxId       int64             `json:"tx_id"`
+	PubKey     crypto.PubKeyEd25519 `json:"public_key"`
+	Punishment *Punishment          `json:"punishment"`
+	TxId       int64                `json:"tx_id"`
 }
 
-func NewTxPunishment(pub *crypto.PublicKey, punishment *Punishment, txId int64) *TxPunishment {
+func NewTxPunishment(pub crypto.PubKeyEd25519, punishment *Punishment, txId int64) *TxPunishment {
 	return &TxPunishment{
 		PubKey:     pub,
 		Punishment: punishment,
@@ -185,12 +186,12 @@ func NewTxPunishment(pub *crypto.PublicKey, punishment *Punishment, txId int64) 
 const FINE = 100
 
 type Punishment struct {
-	BlockId         int64             `json:"block_id"`
-	PubKey          *crypto.PublicKey `json:"public_key"`
-	PunishmentProof *PunishmentProof  `json:"punishment_proof"`
+	BlockId         int64                `json:"block_id"`
+	PubKey          crypto.PubKeyEd25519 `json:"public_key"`
+	PunishmentProof *PunishmentProof     `json:"punishment_proof"`
 }
 
-func NewPunishment(blockId int64, pub *crypto.PublicKey, proof *PunishmentProof) *Punishment {
+func NewPunishment(blockId int64, pub crypto.PubKeyEd25519, proof *PunishmentProof) *Punishment {
 	return &Punishment{
 		BlockId:         blockId,
 		PubKey:          pub,
@@ -199,14 +200,14 @@ func NewPunishment(blockId int64, pub *crypto.PublicKey, proof *PunishmentProof)
 }
 
 type PunishmentProof struct {
-	Chain1Next   *Block            `json:"chain1_next_block"`
-	Chain1Recent *Block            `json:"chain1_recent_block"`
-	Chain2Next   *Block            `json:"chain2_next_block"`
-	Chain2Recent *Block            `json:"chain2_recent_block"`
-	PubKey       *crypto.PublicKey `json:"public_key"`
+	Chain1Next   *Block               `json:"chain1_next_block"`
+	Chain1Recent *Block               `json:"chain1_recent_block"`
+	Chain2Next   *Block               `json:"chain2_next_block"`
+	Chain2Recent *Block               `json:"chain2_recent_block"`
+	PubKey       crypto.PubKeyEd25519 `json:"public_key"`
 }
 
-func NewPunishmentProof(pub *crypto.PublicKey, chain1Next, chain1Recent, chain2Next, chain2Recent *Block) *PunishmentProof {
+func NewPunishmentProof(pub crypto.PubKeyEd25519, chain1Next, chain1Recent, chain2Next, chain2Recent *Block) *PunishmentProof {
 	return &PunishmentProof{
 		Chain1Next:   chain1Next,
 		Chain1Recent: chain1Recent,
@@ -221,19 +222,19 @@ func (_ *TxPayment) IsTx()    {}
 func (_ *TxPunishment) IsTx() {}
 
 type In struct {
-	PubKey    *crypto.PublicKey `json:"public_key"`
-	Signature *crypto.Signature `json:"signature"` //sig(tx_id, past_tx_id, past_beneficiary, out)
-	TxId      int64             `json:"tx_id"`
+	PubKey    crypto.PubKeyEd25519    `json:"public_key"`
+	Signature crypto.SignatureEd25519 `json:"signature"` //sig(tx_id, past_tx_id, past_beneficiary, out)
+	TxId      int64                   `json:"tx_id"`
 }
 
 type InSign struct {
-	Outs     []*Out            `json:"out"`
-	PastTxId int64             `json:"past_tx_id"`
-	Pubkey   *crypto.PublicKey `json:"public_key"`
-	TxId     int64             `json:"tx_id"`
+	Outs     []*Out               `json:"out"`
+	PastTxId int64                `json:"past_tx_id"`
+	Pubkey   crypto.PubKeyEd25519 `json:"public_key"`
+	TxId     int64                `json:"tx_id"`
 }
 
-func NewInSign(outs []*Out, pastTxId int64, pub *crypto.PublicKey, txId int64) *InSign {
+func NewInSign(outs []*Out, pastTxId int64, pub crypto.PubKeyEd25519, txId int64) *InSign {
 	return &InSign{
 		Outs:     outs,
 		PastTxId: pastTxId,
@@ -246,10 +247,10 @@ func (inSign *InSign) Serialize() []byte {
 	return MarshalJSON(inSign)
 }
 
-func NewIn(outs []*Out, pastTxId int64, priv *crypto.PrivateKey, pub *crypto.PublicKey, txId int64) *In {
+func NewIn(outs []*Out, pastTxId int64, priv crypto.PrivKeyEd25519, pub crypto.PubKeyEd25519, txId int64) *In {
 	inSign := NewInSign(outs, pastTxId, pub, txId)
 	data := inSign.Serialize()
-	signature := priv.Sign(data)
+	signature := tndr.Sign(priv, data)
 	return &In{
 		PubKey:    pub,
 		Signature: signature,
@@ -258,11 +259,11 @@ func NewIn(outs []*Out, pastTxId int64, priv *crypto.PrivateKey, pub *crypto.Pub
 }
 
 type Out struct {
-	PubKey *crypto.PublicKey `json:"public_key"`
-	Value  int64             `json:"value"`
+	PubKey crypto.PubKeyEd25519 `json:"public_key"`
+	Value  int64                `json:"value"`
 }
 
-func NewOut(pub *crypto.PublicKey, value int64) *Out {
+func NewOut(pub crypto.PubKeyEd25519, value int64) *Out {
 	return &Out{
 		PubKey: pub,
 		Value:  value,
