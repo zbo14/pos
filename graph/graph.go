@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	// "github.com/zballs/pos/crypto"
 	"github.com/tendermint/go-crypto"
@@ -152,6 +151,6 @@ func (g *Graph) Print() {
 	var idx int64
 	for ; idx < g.size; idx++ {
 		nd, _ := g.Get(idx)
-		fmt.Println(nd)
+		Println(nd)
 	}
 }

@@ -2,7 +2,6 @@ package graph
 
 import (
 	"encoding/binary"
-	"fmt"
 	"github.com/pkg/errors"
 	. "github.com/zballs/pos/util"
 )
@@ -77,7 +76,7 @@ func (nd *Node) NoParents() bool {
 }
 
 func (nd *Node) String() string {
-	return fmt.Sprintf("NODE(idx=%d,parents=%v,value=%x)\n", nd.Idx, nd.Parents, nd.Value)
+	return Sprintf("NODE(idx=%d,parents=%v,value=%x)\n", nd.Idx, nd.Parents, nd.Value)
 }
 
 type Nodelist []*Node

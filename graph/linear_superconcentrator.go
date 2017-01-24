@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	. "github.com/zballs/pos/util"
 )
@@ -38,7 +37,7 @@ func ConstructLinearSuperConcentrator(id int, n, k, d int64, localize bool) (gra
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(sup.size)
+	Println(sup.size)
 	var idx, j int64
 	var nd *Node
 	for ; idx < sup.size; idx++ {

@@ -2,7 +2,6 @@ package merkle
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	. "github.com/zballs/pos/util"
 	"path/filepath"
@@ -24,7 +23,7 @@ type Tree struct {
 }
 
 func (t *Tree) String() string {
-	return fmt.Sprintf("TREE(num_leaves=%d,num_nodes=%d,value=%x)", t.numLeaves, t.numNodes, t.value)
+	return Sprintf("TREE(num_leaves=%d,num_nodes=%d,value=%x)", t.numLeaves, t.numNodes, t.value)
 }
 
 func NewTree(treeId int) (t *Tree, err error) {
@@ -140,7 +139,7 @@ type Proof struct {
 }
 
 func (mp *Proof) String() string {
-	return fmt.Sprintf("MERKLE_PROOF(branch_length=%d,idx=%d,pos=%d,value=%x...)\n",
+	return Sprintf("MERKLE_PROOF(branch_length=%d,idx=%d,pos=%d,value=%x...)\n",
 		len(mp.Branch), mp.Idx, mp.Pos, mp.Value[:3])
 }
 
