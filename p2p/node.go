@@ -13,7 +13,10 @@ import (
 
 const (
 	DEFAULT_PROTO = "tcp"
+	NETWORK       = "SPACEMINT"
 	PART_SIZE     = 1024 * 16
+	SKIP_UPNP     = false
+	VERSION       = "0.0.0"
 )
 
 // TODO: add logger
@@ -26,17 +29,37 @@ type Node struct {
 	sw          *gop2p.Switch
 }
 
-func NewNode(config cfg.Config) *Node {
-	password := config.GetString("password")
+func NewConfig(bookPath, configPath, input, laddr, output, password, seeds string, seedsLimit int) cfg.Config {
+	data := make(map[string]interface{})
+	data["book_path"] = bookPath
+	data["input"] = input
+	data["laddr"] = laddr
+	data["output"] = output
 	priv := tndr.GeneratePrivKey(password)
-	// should addrbook path be in config
-	// or should we pass it as arg?
-	bookPath := config.GetString("addrbook_path")
+	data["priv_key"] = tndr.PrivKeyToB58(priv)
+	data["seeds"] = seeds
+	data["seeds_limit"] = seedsLimit
+	file := MustOpenFile(configPath)
+	MustWriteJSON(file, data)
+	return cfg.NewMapConfig(data)
+}
+
+func ReadConfig(configPath string) cfg.Config {
+	file := MustOpenFile(configPath)
+	var data map[string]interface{}
+	MustReadJSON(file, &data)
+	return cfg.NewMapConfig(data)
+}
+
+func NewNode(config cfg.Config) *Node {
+	bookPath := config.GetString("book_path")
 	book := gop2p.NewAddrBook(bookPath)
 	pexReactor := gop2p.NewPEXReactor(book)
 	dataReactor := NewDataReactor()
 	input := config.GetString("input")
 	output := config.GetString("output")
+	b58 := config.GetString("priv_key")
+	priv := tndr.PrivKeyFromB58(b58)
 	if input != "" {
 		bytes := MustReadFile(input)
 		parts, err := NewPartSetFromData(bytes, PART_SIZE)
@@ -88,9 +111,11 @@ func (nd *Node) Switch() *gop2p.Switch {
 }
 
 func newNodeInfo(config cfg.Config, sw *gop2p.Switch, priv crypto.PrivKeyEd25519) *gop2p.NodeInfo {
+	pub := tndr.PubKey(priv)
 	ndInfo := &gop2p.NodeInfo{
-		Network: config.GetString("network"),
-		Version: config.GetString("version"),
+		Network: NETWORK,
+		PubKey:  pub,
+		Version: VERSION,
 		Other: []string{
 			Sprintf("wire_version=%v", wire.Version),
 			Sprintf("gop2p_version=%v", gop2p.Version),
@@ -107,12 +132,12 @@ func newNodeInfo(config cfg.Config, sw *gop2p.Switch, priv crypto.PrivKeyEd25519
 	return ndInfo
 }
 
-func RunNode(config cfg.Config) *Node {
+func RunNode(configPath string) *Node {
+	config := ReadConfig(configPath)
 	nd := NewNode(config)
-	laddr := config.GetString("node_laddr")
+	laddr := config.GetString("laddr")
 	proto, addr := ProtocolAndAddress(laddr)
-	skipUPNP := config.GetBool("skip_upnp")
-	lis := gop2p.NewDefaultListener(proto, addr, skipUPNP)
+	lis := gop2p.NewDefaultListener(proto, addr, SKIP_UPNP)
 	nd.AddListener(lis)
 	if err := nd.Start(); err != nil {
 		//..

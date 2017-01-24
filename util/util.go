@@ -3,8 +3,10 @@ package util
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/jbenet/go-base58"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/sha3"
 	"hash"
@@ -33,6 +35,52 @@ func MarshalJSON(v interface{}) []byte {
 func UnmarshalJSON(data []byte, v interface{}) {
 	err := json.Unmarshal(data, v)
 	Check(err)
+}
+
+func ReadJSON(r io.Reader, v interface{}) error {
+	dec := json.NewDecoder(r)
+	return dec.Decode(v)
+}
+
+func MustReadJSON(r io.Reader, v interface{}) {
+	err := ReadJSON(r, v)
+	Check(err)
+}
+
+func WriteJSON(w io.Writer, v interface{}) error {
+	enc := json.NewEncoder(w)
+	return enc.Encode(v)
+}
+
+func MustWriteJSON(w io.Writer, v interface{}) {
+	err := WriteJSON(w, v)
+	Check(err)
+}
+
+// B58
+
+func EncodeB58(bytes []byte) string {
+	return base58.Encode(bytes)
+}
+
+func DecodeB58(b58 string) []byte {
+	return base58.Decode(b58)
+}
+
+// Hex
+
+func EncodeHex(bytes []byte) string {
+	return hex.EncodeToString(bytes)
+}
+
+func DecodeHex(hexstr string) ([]byte, error) {
+	return hex.DecodeString(hexstr)
+}
+
+func MustDecodeHex(hexstr string) []byte {
+	bytes, err := DecodeHex(hexstr)
+	Check(err)
+	return bytes
 }
 
 // Hash
@@ -291,25 +339,36 @@ func MustReadFull(r io.Reader, buf []byte) {
 
 // os
 
-func ReadFile(path string) ([]byte, error) {
-	return ioutil.ReadFile(path)
+func OpenFile(filePath string) (*os.File, error) {
+	return os.Open(filePath)
+
 }
 
-func MustReadFile(path string) []byte {
-	bytes, err := ReadFile(path)
+func MustOpenFile(filePath string) *os.File {
+	file, err := OpenFile(filePath)
+	Check(err)
+	return file
+}
+
+func ReadFile(filePath string) ([]byte, error) {
+	return ioutil.ReadFile(filePath)
+}
+
+func MustReadFile(filePath string) []byte {
+	bytes, err := ReadFile(filePath)
 	Check(err)
 	return bytes
 }
 
-func WriteFile(path string, contents []byte, mode os.FileMode) error {
-	if err := ioutil.WriteFile(path, contents, mode); err != nil {
+func WriteFile(filePath string, contents []byte, mode os.FileMode) error {
+	if err := ioutil.WriteFile(filePath, contents, mode); err != nil {
 		return err
 	}
 	return nil
 }
 
-func MustWriteFile(path string, contents []byte, mode os.FileMode) {
-	err := WriteFile(path, contents, mode)
+func MustWriteFile(filePath string, contents []byte, mode os.FileMode) {
+	err := WriteFile(filePath, contents, mode)
 	Check(err)
 }
 
