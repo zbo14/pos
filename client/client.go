@@ -2,16 +2,16 @@ package client
 
 import (
 	"github.com/tendermint/go-crypto"
-	"github.com/zballs/pos/chain"
-	"github.com/zballs/pos/crypto/tndr"
-	"github.com/zballs/pos/p2p"
-	proto "github.com/zballs/pos/protocol"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/chain"
+	"github.com/zbo14/pos/crypto/tndr"
+	"github.com/zbo14/pos/p2p"
+	proto "github.com/zbo14/pos/protocol"
+	. "github.com/zbo14/pos/util"
 	"time"
 )
 
 const (
-	DELTA   = 50
+	DELTA   = 50 // suggested from Spacemint paper
 	TIMEOUT = 10 * time.Second
 )
 
@@ -27,13 +27,14 @@ type Client struct {
 }
 
 func Configure(priv crypto.PrivKeyEd25519) {
+	// TODO: specify params
 	p2p.NewConfig("", "", "", "", "", priv, "", 0)
 }
 
 func NewClient(chainPath, password string) *Client {
 	chain := chain.NewChain(chainPath)
 	priv := tndr.GeneratePrivKey(password)
-	Configure(priv)
+	// Configure(priv)
 	prover := proto.NewProver(priv)
 	verifier := proto.NewVerifier()
 	return &Client{
@@ -66,7 +67,7 @@ func (cli *Client) Init(configPath string, id int) {
 	tx := chain.NewTx(txCommit)
 	cli.Txs = append(cli.Txs, tx)
 	// Run node
-	cli.Node = p2p.RunNode(configPath)
+	// cli.Node = p2p.RunNode(configPath)
 }
 
 func (cli *Client) MineCommit() *proto.CommitProof {
@@ -180,7 +181,7 @@ func (cli *Client) Round() {
 			// Check quality
 			_spaceProof := b.SubHash.SpaceProof
 			_quality := cli.SpaceQuality(_spaceProof)
-			if _quality > quality {
+			if quality < _quality {
 				// .. send block to peers?
 				// .. write block to chain?
 				return
@@ -198,7 +199,7 @@ func (cli *Client) Round() {
 	commitProof := cli.MineCommit()
 	// Create new block
 	newb := chain.NewBlock(commitProof, lastb, priv, spaceProof, cli.Txs)
-	//----- For testing -----//
+	//---- For testing ----//
 	cli.Chain.MustWrite(newb)
 	// TODO: send new_block to peers in network
 }

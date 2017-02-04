@@ -2,8 +2,8 @@ package p2p
 
 import (
 	"bytes"
-	"github.com/zballs/pos/merkle"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/merkle"
+	. "github.com/zbo14/pos/util"
 	"golang.org/x/crypto/ripemd160"
 	"io"
 	"sync"
@@ -37,29 +37,29 @@ func NewBitArray(size int) BitArray {
 	return bits
 }
 
-func (bits BitArray) Has(idx int) (bool, error) {
+func (bits BitArray) Has(idx int) bool {
 	if size := bits.Size(); idx > size {
-		return false, Errorf("Expected idx < %d; got idx=%d\n", size, idx)
+		return false
 	}
 	b := idx / 8
 	rem := idx % 8
 	if bits[b]&(1<<uint8(7-rem)) == 0 {
-		return false, nil
+		return false
 	}
-	return true, nil
+	return true
 }
 
-func (bits BitArray) Set(idx int) (bool, error) {
+func (bits BitArray) Set(idx int) bool {
 	if size := bits.Size(); idx > size {
-		return false, Errorf("Expected idx < %d; got idx=%d\n", size, idx)
+		return false
 	}
 	b := idx / 8
 	rem := idx % 8
 	if bits[b]&(1<<uint8(7-rem)) == 1 {
-		return false, nil
+		return false
 	}
 	bits[b] |= (1 << uint8(7-rem))
-	return true, nil
+	return true
 }
 
 // Part
@@ -107,7 +107,7 @@ type PartSet struct {
 	total int
 }
 
-func NewPartSetFromData(data []byte, partSize int) (*PartSet, error) {
+func NewPartSetFromData(data []byte, partSize int) *PartSet {
 	total := (len(data) + partSize - 1) / partSize
 	values := make([][]byte, total)
 	parts := make([]*Part, total)
@@ -123,28 +123,17 @@ func NewPartSetFromData(data []byte, partSize int) (*PartSet, error) {
 			Idx:   i,
 		}
 		hash := part.Hash()
-		set, err := bits.Set(i)
-		if err != nil {
-			return nil, err
-		} else if !set {
-			//..
+		if set := bits.Set(i); !set {
+			panic("Could not set bit")
 		}
 		parts[i] = part
 		values[i] = hash
 	}
 	tree := new(merkle.MemTree)
-	if err := tree.Construct(values); err != nil {
-		return nil, err
-	}
-	rootHash, err := tree.HashLevels()
-	if err != nil {
-		return nil, err
-	}
+	tree.Construct(values)
+	rootHash := tree.HashLevels()
 	for i := 0; i < total; i++ {
-		parts[i].Proof, err = tree.ComputeMemProof(i)
-		if err != nil {
-			return nil, err
-		}
+		parts[i].Proof = tree.ComputeMemProof(i)
 	}
 	return &PartSet{
 		bits:  bits,
@@ -152,7 +141,7 @@ func NewPartSetFromData(data []byte, partSize int) (*PartSet, error) {
 		hash:  rootHash,
 		parts: parts,
 		total: total,
-	}, nil
+	}
 }
 
 func NewPartSetFromHeader(header PartSetHeader) *PartSet {
@@ -224,10 +213,7 @@ func (partSet *PartSet) AddPart(p *Part) (bool, error) {
 		return false, ErrPartSetInvalidProof
 	}
 	partSet.parts[p.Idx] = p
-	set, err := partSet.bits.Set(p.Idx)
-	if err != nil {
-		return false, err
-	} else if !set {
+	if set := partSet.bits.Set(p.Idx); !set {
 		//..
 	}
 	partSet.count++

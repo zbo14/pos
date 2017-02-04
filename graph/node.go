@@ -3,7 +3,7 @@ package graph
 import (
 	"encoding/binary"
 	"github.com/pkg/errors"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 )
 
 type Node struct {

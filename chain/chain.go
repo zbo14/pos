@@ -1,7 +1,7 @@
 package chain
 
 import (
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"os"
 )
 

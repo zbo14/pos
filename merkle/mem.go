@@ -2,7 +2,7 @@ package merkle
 
 import (
 	"bytes"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -50,15 +50,15 @@ func (t *MemTree) Root() *Node {
 	return t.levels[0][0]
 }
 
-func (t *MemTree) Level(height int) (Level, error) {
+func (t *MemTree) Level(height int) Level {
 	height--
 	if height < 0 {
-		return nil, Error("Height cannot be less than 0")
+		panic("Height cannot be less than 0")
 	}
-	if height > t.Height() {
-		return nil, Errorf("Height cannot be greater than %d\n", t.Height())
+	if max := t.Height(); height > max {
+		Panicf("Height cannot be greater than %d\n", max)
 	}
-	return t.levels[height], nil
+	return t.levels[height]
 }
 
 type MemProof struct {
@@ -74,14 +74,14 @@ func NewMemProof(branch Branch, hash []byte) *MemProof {
 	}
 }
 
-func (t *MemTree) ComputeMemProof(idx int) (*MemProof, error) {
+func (t *MemTree) ComputeMemProof(idx int) *MemProof {
 	if idx < 0 {
-		return nil, Error("Idx cannot be less than 0")
+		panic("Idx cannot be less than 0")
 	}
 	height := t.Height()
-	leaves, _ := t.Level(height)
-	if idx >= len(leaves) {
-		return nil, Error("Idx must be less than number of leaves")
+	leaves := t.Level(height)
+	if length := len(leaves); idx >= length {
+		Panicf("Expected idx <= %d; got idx=%d\n", length, idx)
 	}
 	memProof := new(MemProof)
 	memProof.idx = idx
@@ -93,10 +93,7 @@ func (t *MemTree) ComputeMemProof(idx int) (*MemProof, error) {
 	}
 	for {
 		height--
-		level, err := t.Level(height)
-		if err != nil {
-			return nil, err
-		}
+		level := t.Level(height)
 		if len(level) == 1 {
 			// We hit root... break
 			break
@@ -108,7 +105,7 @@ func (t *MemTree) ComputeMemProof(idx int) (*MemProof, error) {
 		}
 
 	}
-	return memProof, nil
+	return memProof
 }
 
 func VerifyMemProof(memProof *MemProof, root []byte) bool {
@@ -140,14 +137,14 @@ func VerifyMemProof(memProof *MemProof, root []byte) bool {
 // (2) Sets values for leaf nodes
 // (3) Establishes parent-child relationships between levels
 
-func (t *MemTree) Construct(values [][]byte) error {
+func (t *MemTree) Construct(values [][]byte) {
 	if !t.Empty() {
 		// MemTree should be empty
-		return Error("MemTree is not empty")
+		panic("MemTree is not empty")
 	}
 	var count int
 	if count = len(values); count == 0 {
-		return Error("No values")
+		panic("No values")
 	}
 	height := calcMemTreeHeight(count)
 	t.levels = make([]Level, height)
@@ -167,7 +164,6 @@ func (t *MemTree) Construct(values [][]byte) error {
 		t.levels[height] = constructLevel(children)
 		Printf("Level %d has %d nodes\n", height, len(t.levels[height]))
 	}
-	return nil
 }
 
 func constructLevel(children Level) Level {
@@ -214,7 +210,7 @@ func calcMemTreeHeight(count int) int {
 
 // DFS traversal and hashing of non-leaf nodes
 
-func (t *MemTree) HashLevels() ([]byte, error) {
+func (t *MemTree) HashLevels() []byte {
 	root := t.Root()
 	nd := root
 	var hash []byte
@@ -222,13 +218,13 @@ func (t *MemTree) HashLevels() ([]byte, error) {
 	for {
 		if nd.hash != nil {
 			if nd == root {
-				return nd.hash, nil
+				return nd.hash
 			}
 			nd = nd.parent
 			continue
 		}
 		if nd.IsLeaf() {
-			return nil, Error("Leaf does not have value")
+			panic("Leaf does not have value")
 		}
 		if nd.left.hash == nil {
 			nd = nd.left
@@ -246,7 +242,7 @@ func (t *MemTree) HashLevels() ([]byte, error) {
 		nd.hash = hasher.Sum(nil)
 		hasher.Reset()
 		if nd == root {
-			return nd.hash, nil
+			return nd.hash
 		}
 		nd = nd.parent
 	}

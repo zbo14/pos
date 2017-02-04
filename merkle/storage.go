@@ -3,7 +3,7 @@ package merkle
 import (
 	"bytes"
 	"github.com/syndtr/goleveldb/leveldb"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"path/filepath"
 	"strconv"
 )

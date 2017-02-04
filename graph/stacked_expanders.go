@@ -1,6 +1,6 @@
 package graph
 
-import . "github.com/zballs/pos/util"
+import . "github.com/zbo14/pos/util"
 
 type StackedExpanders struct {
 	*Graph

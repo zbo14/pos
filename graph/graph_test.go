@@ -2,8 +2,8 @@ package graph
 
 import (
 	"bytes"
-	"github.com/zballs/pos/crypto"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/crypto"
+	. "github.com/zbo14/pos/util"
 	"testing"
 )
 

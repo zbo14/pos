@@ -2,9 +2,9 @@ package chain
 
 import (
 	"github.com/tendermint/go-crypto"
-	"github.com/zballs/pos/crypto/tndr"
-	proto "github.com/zballs/pos/protocol"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/crypto/tndr"
+	proto "github.com/zbo14/pos/protocol"
+	. "github.com/zbo14/pos/util"
 )
 
 // Following the Spacemint specification..

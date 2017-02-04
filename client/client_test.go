@@ -1,23 +1,23 @@
 package client
 
 import (
-	"github.com/zballs/pos/chain"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/chain"
+	. "github.com/zbo14/pos/util"
 	"testing"
 )
 
 const (
-	id   = 0
-	path = "test_chain"
+	ID          = 0
+	CHAIN_PATH  = "test_chain"
+	CONFIG_PATH = ""
+	PASSWORD    = "it's a secret"
 )
 
 func TestClient(t *testing.T) {
 	// Create new client
-	cli := NewClient(path)
+	cli := NewClient(CHAIN_PATH, PASSWORD)
 	// Init client
-	if err := cli.Init(id); err != nil {
-		t.Fatal(err.Error())
-	}
+	cli.Init(CONFIG_PATH, ID)
 	// Mine space proof
 	spaceProof := cli.MineSpace()
 	// Mine commit proof

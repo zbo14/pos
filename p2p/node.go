@@ -5,8 +5,8 @@ import (
 	"github.com/tendermint/go-crypto"
 	gop2p "github.com/tendermint/go-p2p"
 	"github.com/tendermint/go-wire"
-	"github.com/zballs/pos/crypto/tndr"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/crypto/tndr"
+	. "github.com/zbo14/pos/util"
 )
 
 // From github.com/jaekwon/twirl/node/node
@@ -61,8 +61,7 @@ func NewNode(config cfg.Config) *Node {
 	priv := tndr.PrivKeyFromB58(b58)
 	if input != "" {
 		bytes := MustReadFile(input)
-		parts, err := NewPartSetFromData(bytes, PART_SIZE)
-		Check(err)
+		parts := NewPartSetFromData(bytes, PART_SIZE)
 		dataReactor.SetParts(parts)
 	}
 	if output != "" {

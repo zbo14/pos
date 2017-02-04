@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"github.com/pkg/errors"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"hash"
 	"math/big"
 )

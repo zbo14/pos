@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"crypto/rand"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"golang.org/x/crypto/ed25519"
 )
 

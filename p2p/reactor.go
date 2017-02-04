@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	gop2p "github.com/tendermint/go-p2p"
 	"github.com/tendermint/go-wire"
-	. "github.com/zballs/pos/util"
+	. "github.com/zbo14/pos/util"
 	"sync"
 	"time"
 )
@@ -229,18 +229,12 @@ func (peerState *PeerState) SentMessage(msg DataMessage) {
 	case *HasPartsMessage:
 		peerState.hasParts = msg.HasParts
 	case *HasPartMessage:
-		set, err := peerState.hasParts.Set(msg.Idx)
-		if err != nil {
-			// shouldn't happen
-		} else if !set {
+		if set := peerState.hasParts.Set(msg.Idx); !set {
 			//..
 		}
 	case *PartMessage:
 		idx := msg.Part.Idx
-		set, err := peerState.hasParts.Set(idx)
-		if err != nil {
-			// shouldn't happen
-		} else if !set {
+		if set := peerState.hasParts.Set(idx); !set {
 			//..
 		}
 	default:
@@ -257,13 +251,8 @@ func (peerState *PeerState) GetHasParts() BitArray {
 func (peerState *PeerState) SetHasPart(idx int) bool {
 	peerState.mtx.Lock()
 	defer peerState.mtx.Unlock()
-	set, err := peerState.hasParts.Set(idx)
-	if err != nil {
-		// shouldn't happen
-		return false
-	} else if !set {
+	if set := peerState.hasParts.Set(idx); !set {
 		//..
-		return false
 	}
 	return true
 }

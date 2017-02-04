@@ -3,10 +3,10 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	// "github.com/zballs/pos/crypto/tndr"
+	// "github.com/zbo14/pos/crypto/tndr"
 	"github.com/tendermint/go-crypto"
-	"github.com/zballs/pos/merkle"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/merkle"
+	. "github.com/zbo14/pos/util"
 )
 
 const (

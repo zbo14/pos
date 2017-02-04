@@ -2,10 +2,10 @@ package protocol
 
 import (
 	"github.com/tendermint/go-crypto"
-	"github.com/zballs/pos/crypto/tndr"
-	"github.com/zballs/pos/graph"
-	"github.com/zballs/pos/merkle"
-	. "github.com/zballs/pos/util"
+	"github.com/zbo14/pos/crypto/tndr"
+	"github.com/zbo14/pos/graph"
+	"github.com/zbo14/pos/merkle"
+	. "github.com/zbo14/pos/util"
 )
 
 type CommitProof struct {
@@ -22,10 +22,6 @@ type SpaceProof struct {
 	Seed   []byte               `json:"seed"`
 	Size   int64                `json:"size"`
 }
-
-// Do we need `space` (i.e. *os.File) if we're
-// storing values in the graph+tree leveldbs
-// which are on disk? I thinks not
 
 type Prover struct {
 	Commit []byte //merkle root hash
